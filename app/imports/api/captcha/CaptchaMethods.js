@@ -4,9 +4,34 @@ import svgCaptcha from "svg-captcha";
 import crypto from "crypto";
 import { Captcha } from "./Captcha";
 
+// Mongo collection for captchas
+export const Captcha = new Mongo.Collection("captchas");
+
+// Generate secure random token
+function generateToken() {
+  return crypto.randomBytes(32).toString("hex"); // 64-character hex
+}
+
+// Hash captcha answer
+function hashAnswer(answer) {
+  return crypto.createHash("sha256")
+    .update(answer.toLowerCase().trim())
+    .digest("hex");
+}
+
+if (Meteor.isServer) {
+  // Unique token index
+  Captcha.rawCollection().createIndex({ token: 1 }, { unique: true });
+
+  // auto-expire after 10 minutes
+  Captcha.rawCollection().createIndex(
+    { timestamp: 1 },
+    { expireAfterSeconds: 600 }
+  );
+}
+
 Meteor.methods({
   async "captcha.generate"() {
-    // Generate CAPTCHA
     const captcha = svgCaptcha.create({
       size: 5,
       noise: 2,
@@ -17,67 +42,52 @@ Meteor.methods({
       fontSize: 40,
     });
 
-    // Hash the CAPTCHA text so it’s not stored in plain text
-    const captchaHash = crypto
-      .createHash("sha256")
-      .update(captcha.text.toLowerCase())
-      .digest("hex");
+    const token = generateToken();
 
-    // Generate secure random session token (not predictable)
-    const sessionToken = crypto.randomBytes(32).toString("hex");
-
-    // Store CAPTCHA (expires after 10 minutes)
     await Captcha.insertAsync({
-      token: sessionToken,
-      hash: captchaHash,
-      timestamp: Date.now(),
+      token,
+      hash: hashAnswer(captcha.text),
+      timestamp: new Date(),
       used: false,
+      attempts: 0, // track failed attempts
     });
 
-    // Cleanup expired CAPTCHAs
-    const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
-    await Captcha.removeAsync({ timestamp: { $lt: tenMinutesAgo } });
-
     return {
-      sessionToken,
+      token,
       svg: captcha.data,
     };
   },
 
-  async "captcha.verify"(sessionToken, userInput) {
-    check(sessionToken, String);
+  async "captcha.verify"(token, userInput) {
+    check(token, String);
     check(userInput, String);
 
-    const session = await Captcha.findOneAsync({ token: sessionToken });
+    const session = await Captcha.findOneAsync({ token });
+
     if (!session) {
-      throw new Meteor.Error("invalid-captcha", "CAPTCHA session not found or expired");
+      throw new Meteor.Error("invalid-captcha", "CAPTCHA not found or expired");
     }
 
-    // Check expiration
-    const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
-    if (session.timestamp < tenMinutesAgo) {
-      await Captcha.removeAsync({ token: sessionToken });
-      throw new Meteor.Error("expired-captcha", "CAPTCHA has expired");
-    }
-
-    // Prevent reuse
     if (session.used) {
-      throw new Meteor.Error("captcha-reused", "CAPTCHA has already been used");
+      throw new Meteor.Error("captcha-used", "CAPTCHA already used");
     }
 
-    // Compare hashed input
-    const inputHash = crypto
-      .createHash("sha256")
-      .update(userInput.toLowerCase())
-      .digest("hex");
+    if (session.attempts >= 3) {
+      // Auto-expire after too many attempts
+      await Captcha.updateAsync({ token }, { $set: { used: true } });
+      throw new Meteor.Error("too-many-attempts", "CAPTCHA invalidated due to too many failed attempts");
+    }
 
-    const isValid = session.hash === inputHash;
+    const isValid = session.hash === hashAnswer(userInput);
 
-    // Mark as used regardless of success to block brute force
-    await Captcha.updateAsync(session._id, { $set: { used: true } });
-
-    // Cleanup expired CAPTCHAs
-    await Captcha.removeAsync({ timestamp: { $lt: tenMinutesAgo } });
+    if (isValid) {
+      await Captcha.updateAsync({ token }, { $set: { used: true } });
+    } else {
+      await Captcha.updateAsync(
+        { token },
+        { $inc: { attempts: 1 } }
+      );
+    }
 
     return isValid;
   },
