@@ -14,6 +14,7 @@
 - **V010**: Timing Attack in CAPTCHA Validation (MEDIUM → RESOLVED)
 - **V013**: Missing File Type Validation in Image Upload (HIGH → RESOLVED)
 - **V015**: Captcha Brute Force Vulnerability (MEDIUM → RESOLVED)
+- **V017**: Weak CAPTCHA Session Management (MEDIUM → RESOLVED)
 - **V018**: Missing Input Sanitization in Chat Messages (MEDIUM → RESOLVED)
 - **V020**: Email-Based User Discovery in Chat Publications (MEDIUM → RESOLVED)
 - **V021**: Performance Issues in Places Publications (MEDIUM → RESOLVED)
@@ -22,21 +23,20 @@
 
 - **V016**: Server-Side Request Forgery in Proxy Endpoints (HIGH → ACCEPTED - Intentional proxy functionality)
 
-### 🚨 **REMAINING VULNERABILITIES** (6 Pending)
+### 🚨 **REMAINING VULNERABILITIES** (5 Pending)
 
 - **V009**: Race Condition in User Role Assignment (MEDIUM)
 - **V011**: Insecure Place Resolution in FirstRun (MEDIUM)
 - **V012**: Unsafe JSON Processing in Web Worker (LOW)
 - **V014**: Direct Image Data Exposure via Server Routes (HIGH - CRITICAL)
-- **V017**: Weak CAPTCHA Session Management (MEDIUM)
 - **V022**: Direct Database Operations in Client Code (HIGH - CRITICAL)
 
 ### 📈 **Security Progress**
 
 - **Total Vulnerabilities**: 17 identified
-- **Fixed**: 11 vulnerabilities (64.7%)
+- **Fixed**: 12 vulnerabilities (70.5%)
 - **Accepted Risk**: 1 vulnerability (5.9%)
-- **Remaining**: 6 vulnerabilities (35.3%)
+- **Remaining**: 5 vulnerabilities (29.4%)
 - **Critical/High Priority Remaining**: 2 (V014, V022)
 
 ---
