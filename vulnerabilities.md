@@ -546,14 +546,17 @@ const options = {
 
 ---
 
-### <a name="v017"></a>🟡 **V017: Weak CAPTCHA Session Management**
+### <a name="v017"></a>🟡 ~~**V017: Weak CAPTCHA Session Management**~~ (FIXED)
 
 **File**: `imports/api/captcha/Captcha.js:18-32`
 **Severity**: MEDIUM
 **Type**: Session Management
 
 ```javascript
-// VULNERABLE: Non-atomic CAPTCHA session updates
+// FIXED: atomic captcha updates
+  // added automatic captcha cleanup
+  // encrypted captchas
+  // added anti-bruteforce
 async function useCaptcha(sessionId) {
   const session = await Captcha.findOneAsync({ _id: sessionId });
   await Captcha.updateAsync(session, {
@@ -568,9 +571,9 @@ async function useCaptcha(sessionId) {
 - Race condition between find and update operations
 - CAPTCHA could be used multiple times simultaneously
 - No atomic "use-once" guarantee
-- Session reuse possible under concurrent access
+- Session reuse is possible under concurrent access
 
-**Impact**: CAPTCHA session reuse, bypassing single-use restrictions
+**Impact**: ~~CAPTCHA session reuse, bypassing single-use restrictions~~ (RESOLVED)
 
 ---
 
