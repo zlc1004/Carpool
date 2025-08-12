@@ -147,25 +147,32 @@ async function addRide(data) {
     rideData.createdAt = new Date();
   }
 
-  // Validate and resolve origin and destination places
-  if (rideData.origin) {
-    let originPlace = await Places.findOneAsync({ _id: rideData.origin });
-    // If not found by ID, try to find by text (place name)
-    if (!originPlace) {
-      originPlace = await Places.findOneAsync({ text: rideData.origin });
-      if (originPlace) {
-        console.log(
-          `    Resolved origin "${rideData.origin}" to place ID: ${originPlace._id}`,
-        );
-        rideData.origin = originPlace._id;
-      } else {
-        console.error(
-          `    Error: Origin place "${rideData.origin}" not found by ID or name`,
-        );
-        return;
-      }
+// Validate and resolve origin place securely
+if (rideData.origin) {
+  let originPlace = await Places.findOneAsync({
+    _id: rideData.origin,
+    ownerId: this.userId
+  });
+
+  if (!originPlace) {
+    originPlace = await Places.findOneAsync({
+      text: rideData.origin,
+      ownerId: this.userId
+    });
+
+    if (originPlace && originPlace._id && typeof originPlace._id === "string") {
+      console.log(
+        `    Resolved origin "${rideData.origin}" to place ID: ${originPlace._id}`
+      );
+      rideData.origin = originPlace._id;
+    } else {
+      console.error(
+        `    Error: Origin place "${rideData.origin}" not found or does not belong to this user`
+      );
+      return;
     }
   }
+}
 
   if (rideData.destination) {
     let destinationPlace = await Places.findOneAsync({
