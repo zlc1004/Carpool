@@ -873,7 +873,7 @@ Meteor.publish("places.mine", async function publishMyPlaces() {
 | --------------------------------------------------------------- | ------------------------- | ---------- | ---------- | ------------ | ------------ |
 | [~~V001: User Update Validation~~ (FIXED)](#v001)               | ~~HIGH~~ **RESOLVED**     | ~~Medium~~ | ~~High~~   | RESOLVED     | `101f5d9`    |
 | [~~V002: Share Code Race Condition~~ (REMOVED)](#v002)          | ~~MEDIUM~~ **REMOVED**    | ~~Low~~    | ~~Medium~~ | REMOVED      | `cbe368b`    |
-| [~~V003: Data Exposure (Client Publications)~~ (Legacy)](#v003) | HIGH                      | High       | Medium     | IGNORED      | -            |
+| [~~V003: Data Exposure (Client Publications)~~ (Legacy)](#v003) | HIGH                      | High       | Medium     | IGNORED      | -bb5559c            |
 | [~~V004: Input Sanitization~~ (FIXED)](#v004)                   | ~~MEDIUM~~ **RESOLVED**   | ~~Medium~~ | ~~Low~~    | RESOLVED     | `b56f9d9`    |
 | [~~V005: Client DB Operations~~ (Legacy)](#v005)                | MEDIUM                    | High       | Medium     | IGNORED      | -            |
 | [~~V006: Profile Authorization~~ (Legacy)](#v006)               | MEDIUM                    | Medium     | Medium     | IGNORED      | -            |
@@ -887,7 +887,7 @@ Meteor.publish("places.mine", async function publishMyPlaces() {
 | [V014: Direct Image Data Exposure](#v014)                       | **HIGH**                  | High       | Medium     | **CRITICAL** | -            |
 | [~~V015: Captcha Brute Force~~ (FIXED)](#v015)                  | ~~MEDIUM~~ **RESOLVED**   | ~~Medium~~ | ~~Medium~~ | RESOLVED     | `506515e`    |
 | [~~V016: SSRF in Proxy Endpoints~~ (INTENTIONAL)](#v016)        | ~~HIGH~~ **ACCEPTED**     | ~~Low~~    | ~~High~~   | ACCEPTED     | `a91000b`    |
-| [V017: Weak CAPTCHA Session Management](#v017)                  | MEDIUM                    | Medium     | Medium     | **MEDIUM**   | -            |
+| [V017: Weak CAPTCHA Session Management](#v017)                  | MEDIUM                    | Medium     | Medium     | **MEDIUM**   | -407af03            |
 | [~~V018: Missing Chat Input Sanitization~~ (FIXED)](#v018)      | ~~MEDIUM~~ **RESOLVED**   | ~~High~~   | ~~Medium~~ | RESOLVED     | `ada6171`    |
 | [~~V020: Email-Based User Discovery~~ (FIXED)](#v020)           | ~~MEDIUM~~ **RESOLVED**   | ~~Medium~~ | ~~Low~~    | RESOLVED     | `d07d944`    |
 | [~~V021: Performance Issues in Publications~~ (FIXED)](#v021)   | ~~MEDIUM~~ **RESOLVED**   | ~~Medium~~ | ~~Medium~~ | RESOLVED     | `cca6a8b`    |
