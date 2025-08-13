@@ -313,7 +313,7 @@ let normalizedCode = shareCode.toUpperCase().replace(/\s+/g, "");
 
 ---
 
-### <a name="v011"></a>🟡 **V011: Insecure Place Resolution in FirstRun**
+### <a name="v011"></a>🟡 ~~**V011: Insecure Place Resolution in FirstRun**~~
 
 **File**: `imports/startup/server/FirstRun.js:152-178`
 **Severity**: MEDIUM
