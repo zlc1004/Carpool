@@ -32,17 +32,23 @@ async function createUser(email, firstName, lastName, password, role) {
     resolve(id);
   });
 
-  if (role === "admin") {
-    console.log(`  Assigning admin role to user ${email} with ID ${userID}`);
-    // Add admin role directly to user document
-    await Meteor.users.updateAsync(userID, {
-      $set: { roles: ["admin"] },
-    });
+ if (role === "admin") {
+  console.log(`  Assigning admin role to user ${email} with ID ${userID}`);
+
+  // Atomically add "admin" role without overwriting other roles
+  const result = await Meteor.users.updateAsync(
+    { _id: userID, roles: { $ne: "admin" } }, // Only if not already admin
+    { $addToSet: { roles: "admin" } }         // Add without duplicates
+  );
+
+  if (result === 0) {
+    console.warn(`  User ${email} already has admin role or does not exist`);
+  } else {
     console.log(`  Admin role assignment completed for user ${email}`);
   }
-
-  return userID;
 }
+
+return userID;
 
 async function addPlace(data) {
   console.log(`  Adding: Place "${data.text}" for ${data.createdBy}`);
