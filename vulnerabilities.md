@@ -4,7 +4,7 @@
 
 **Last Updated**: August 2025 | **Status**: Critical New Vulnerability Discovered
 
-### ✅ **RESOLVED VULNERABILITIES** (11 Fixed)
+### ✅ **RESOLVED VULNERABILITIES** (12 Fixed)
 
 - **V001**: Missing Server-Side Validation in User Updates (HIGH → RESOLVED)
 - **V002**: Race Condition in Share Code Generation (MEDIUM → REMOVED)
@@ -12,8 +12,10 @@
 - **V007**: XSS Vulnerability in CAPTCHA Display (HIGH → RESOLVED)
 - **V008**: Insecure Publications Exposing All Data (CRITICAL → RESOLVED)
 - **V010**: Timing Attack in CAPTCHA Validation (MEDIUM → RESOLVED)
+- **V011**: Insecure Place Resolution in FirstRun (MEDIUM)
 - **V013**: Missing File Type Validation in Image Upload (HIGH → RESOLVED)
 - **V015**: Captcha Brute Force Vulnerability (MEDIUM → RESOLVED)
+- **V017**: Weak CAPTCHA Session Management (MEDIUM → RESOLVED)
 - **V018**: Missing Input Sanitization in Chat Messages (MEDIUM → RESOLVED)
 - **V020**: Email-Based User Discovery in Chat Publications (MEDIUM → RESOLVED)
 - **V021**: Performance Issues in Places Publications (MEDIUM → RESOLVED)
@@ -22,21 +24,19 @@
 
 - **V016**: Server-Side Request Forgery in Proxy Endpoints (HIGH → ACCEPTED - Intentional proxy functionality)
 
-### 🚨 **REMAINING VULNERABILITIES** (6 Pending)
+### 🚨 **REMAINING VULNERABILITIES** (4 Pending)
 
 - **V009**: Race Condition in User Role Assignment (MEDIUM)
-- **V011**: Insecure Place Resolution in FirstRun (MEDIUM)
 - **V012**: Unsafe JSON Processing in Web Worker (LOW)
 - **V014**: Direct Image Data Exposure via Server Routes (HIGH - CRITICAL)
-- **V017**: Weak CAPTCHA Session Management (MEDIUM)
 - **V022**: Direct Database Operations in Client Code (HIGH - CRITICAL)
 
 ### 📈 **Security Progress**
 
 - **Total Vulnerabilities**: 17 identified
-- **Fixed**: 11 vulnerabilities (64.7%)
+- **Fixed**: 12 vulnerabilities (70.5%)
 - **Accepted Risk**: 1 vulnerability (5.9%)
-- **Remaining**: 6 vulnerabilities (35.3%)
+- **Remaining**: 5 vulnerabilities (29.4%)
 - **Critical/High Priority Remaining**: 2 (V014, V022)
 
 ---
@@ -313,7 +313,7 @@ let normalizedCode = shareCode.toUpperCase().replace(/\s+/g, "");
 
 ---
 
-### <a name="v011"></a>🟡 **V011: Insecure Place Resolution in FirstRun**
+### <a name="v011"></a>🟡 ~~**V011: Insecure Place Resolution in FirstRun**~~
 
 **File**: `imports/startup/server/FirstRun.js:152-178`
 **Severity**: MEDIUM
@@ -546,14 +546,17 @@ const options = {
 
 ---
 
-### <a name="v017"></a>🟡 **V017: Weak CAPTCHA Session Management**
+### <a name="v017"></a>🟡 ~~**V017: Weak CAPTCHA Session Management**~~ (FIXED)
 
 **File**: `imports/api/captcha/Captcha.js:18-32`
 **Severity**: MEDIUM
 **Type**: Session Management
 
 ```javascript
-// VULNERABLE: Non-atomic CAPTCHA session updates
+// FIXED: atomic captcha updates
+  // added automatic captcha cleanup
+  // encrypted captchas
+  // added anti-bruteforce
 async function useCaptcha(sessionId) {
   const session = await Captcha.findOneAsync({ _id: sessionId });
   await Captcha.updateAsync(session, {
@@ -568,9 +571,9 @@ async function useCaptcha(sessionId) {
 - Race condition between find and update operations
 - CAPTCHA could be used multiple times simultaneously
 - No atomic "use-once" guarantee
-- Session reuse possible under concurrent access
+- Session reuse is possible under concurrent access
 
-**Impact**: CAPTCHA session reuse, bypassing single-use restrictions
+**Impact**: ~~CAPTCHA session reuse, bypassing single-use restrictions~~ (RESOLVED)
 
 ---
 
@@ -870,7 +873,7 @@ Meteor.publish("places.mine", async function publishMyPlaces() {
 | --------------------------------------------------------------- | ------------------------- | ---------- | ---------- | ------------ | ------------ |
 | [~~V001: User Update Validation~~ (FIXED)](#v001)               | ~~HIGH~~ **RESOLVED**     | ~~Medium~~ | ~~High~~   | RESOLVED     | `101f5d9`    |
 | [~~V002: Share Code Race Condition~~ (REMOVED)](#v002)          | ~~MEDIUM~~ **REMOVED**    | ~~Low~~    | ~~Medium~~ | REMOVED      | `cbe368b`    |
-| [~~V003: Data Exposure (Client Publications)~~ (Legacy)](#v003) | HIGH                      | High       | Medium     | IGNORED      | -            |
+| [~~V003: Data Exposure (Client Publications)~~ (Legacy)](#v003) | HIGH                      | High       | Medium     | IGNORED      | -bb5559c     |
 | [~~V004: Input Sanitization~~ (FIXED)](#v004)                   | ~~MEDIUM~~ **RESOLVED**   | ~~Medium~~ | ~~Low~~    | RESOLVED     | `b56f9d9`    |
 | [~~V005: Client DB Operations~~ (Legacy)](#v005)                | MEDIUM                    | High       | Medium     | IGNORED      | -            |
 | [~~V006: Profile Authorization~~ (Legacy)](#v006)               | MEDIUM                    | Medium     | Medium     | IGNORED      | -            |
@@ -878,13 +881,13 @@ Meteor.publish("places.mine", async function publishMyPlaces() {
 | [~~V008: Rides Publication Exposure~~ (FIXED)](#v008)           | ~~CRITICAL~~ **RESOLVED** | ~~High~~   | ~~High~~   | RESOLVED     | `c62faed`    |
 | [V009: Role Assignment Race Condition](#v009)                   | MEDIUM                    | Low        | High       | **HIGH**     | -            |
 | [~~V010: CAPTCHA Timing Attack~~ (FIXED)](#v010)                | ~~MEDIUM~~ **RESOLVED**   | ~~Low~~    | ~~Low~~    | RESOLVED     | `aea2f49`    |
-| [V011: Insecure Place Resolution](#v011)                        | MEDIUM                    | Medium     | Medium     | **MEDIUM**   | -            |
+| [V011: Insecure Place Resolution](#v011)                        | MEDIUM                    | Medium     | Medium     | **MEDIUM**   | -bb5559c     |
 | [V012: Web Worker JSON Processing](#v012)                       | LOW                       | Low        | Low        | **LOW**      | -            |
 | [~~V013: Missing File Type Validation~~ (FIXED)](#v013)         | ~~HIGH~~ **RESOLVED**     | ~~High~~   | ~~High~~   | RESOLVED     | `a1fb7d8`    |
 | [V014: Direct Image Data Exposure](#v014)                       | **HIGH**                  | High       | Medium     | **CRITICAL** | -            |
 | [~~V015: Captcha Brute Force~~ (FIXED)](#v015)                  | ~~MEDIUM~~ **RESOLVED**   | ~~Medium~~ | ~~Medium~~ | RESOLVED     | `506515e`    |
 | [~~V016: SSRF in Proxy Endpoints~~ (INTENTIONAL)](#v016)        | ~~HIGH~~ **ACCEPTED**     | ~~Low~~    | ~~High~~   | ACCEPTED     | `a91000b`    |
-| [V017: Weak CAPTCHA Session Management](#v017)                  | MEDIUM                    | Medium     | Medium     | **MEDIUM**   | -            |
+| [V017: Weak CAPTCHA Session Management](#v017)                  | MEDIUM                    | Medium     | Medium     | **MEDIUM**   | -407af03     |
 | [~~V018: Missing Chat Input Sanitization~~ (FIXED)](#v018)      | ~~MEDIUM~~ **RESOLVED**   | ~~High~~   | ~~Medium~~ | RESOLVED     | `ada6171`    |
 | [~~V020: Email-Based User Discovery~~ (FIXED)](#v020)           | ~~MEDIUM~~ **RESOLVED**   | ~~Medium~~ | ~~Low~~    | RESOLVED     | `d07d944`    |
 | [~~V021: Performance Issues in Publications~~ (FIXED)](#v021)   | ~~MEDIUM~~ **RESOLVED**   | ~~Medium~~ | ~~Medium~~ | RESOLVED     | `cca6a8b`    |

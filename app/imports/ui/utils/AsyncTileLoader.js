@@ -21,6 +21,7 @@ class AsyncTileLoader {
     this.initIndexedDB();
   }
 
+<<<<<<< HEAD:app/imports/ui/utils/AsyncTileLoader.js
   /**
    * Initialize Web Worker for tile loading
    */
@@ -33,8 +34,23 @@ class AsyncTileLoader {
       const workerScript = `
         self.onmessage = async function(e) {
           const { tileUrl, tileId } = e.data;
+=======
+/**
+ * Initialise Web Worker for tile loading
+ */
+initWorker() {
+  try {
+    // Create inline worker with URL validation to avoid unsafe processing
+    const workerScript = `
+      self.onmessage = async function(e) {
+        const { tileUrl, tileId } = e.data;
+>>>>>>> origin/main:app/imports/ui/mobile/utils/AsyncTileLoader.js
 
+        try {
+          // Validate tile URL before fetching
+          let parsed;
           try {
+<<<<<<< HEAD:app/imports/ui/utils/AsyncTileLoader.js
             // Validate URL format
             let parsedUrl;
             try {
@@ -69,9 +85,44 @@ class AsyncTileLoader {
               tileId,
               error: error.message
             });
+=======
+            parsed = new URL(tileUrl);
+          } catch {
+            throw new Error("Invalid URL format");
+>>>>>>> origin/main:app/imports/ui/mobile/utils/AsyncTileLoader.js
           }
-        };
-      `;
+
+          // Allow only HTTPS and trusted domains
+          if (!["http:", "https:"].includes(parsed.protocol)) {
+            throw new Error("Invalid protocol");
+          }
+          if (!parsed.hostname.endsWith("your-trusted-tileserver.com")) {
+            throw new Error("Untrusted tile host");
+          }
+
+          const response = await fetch(tileUrl);
+          if (!response.ok) {
+            throw new Error(\`HTTP \${response.status}\`);
+          }
+
+          const blob = await response.blob();
+          const arrayBuffer = await blob.arrayBuffer();
+
+          self.postMessage({
+            success: true,
+            tileId,
+            data: arrayBuffer,
+            contentType: blob.type
+          });
+        } catch (error) {
+          self.postMessage({
+            success: false,
+            tileId,
+            error: error.message
+          });
+        }
+      };
+    `;
 
       const blob = new Blob([workerScript], { type: "application/javascript" });
       this.worker = new Worker(URL.createObjectURL(blob));

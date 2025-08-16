@@ -32,17 +32,23 @@ async function createUser(email, firstName, lastName, password, role) {
     resolve(id);
   });
 
-  if (role === "admin") {
-    console.log(`  Assigning admin role to user ${email} with ID ${userID}`);
-    // Add admin role directly to user document
-    await Meteor.users.updateAsync(userID, {
-      $set: { roles: ["admin"] },
-    });
+ if (role === "admin") {
+  console.log(`  Assigning admin role to user ${email} with ID ${userID}`);
+
+  // Atomically add "admin" role without overwriting other roles
+  const result = await Meteor.users.updateAsync(
+    { _id: userID, roles: { $ne: "admin" } }, // Only if not already admin
+    { $addToSet: { roles: "admin" } }         // Add without duplicates
+  );
+
+  if (result === 0) {
+    console.warn(`  User ${email} already has admin role or does not exist`);
+  } else {
     console.log(`  Admin role assignment completed for user ${email}`);
   }
-
-  return userID;
 }
+
+return userID;
 
 async function addPlace(data) {
   console.log(`  Adding: Place "${data.text}" for ${data.createdBy}`);
@@ -147,25 +153,32 @@ async function addRide(data) {
     rideData.createdAt = new Date();
   }
 
-  // Validate and resolve origin and destination places
-  if (rideData.origin) {
-    let originPlace = await Places.findOneAsync({ _id: rideData.origin });
-    // If not found by ID, try to find by text (place name)
-    if (!originPlace) {
-      originPlace = await Places.findOneAsync({ text: rideData.origin });
-      if (originPlace) {
-        console.log(
-          `    Resolved origin "${rideData.origin}" to place ID: ${originPlace._id}`,
-        );
-        rideData.origin = originPlace._id;
-      } else {
-        console.error(
-          `    Error: Origin place "${rideData.origin}" not found by ID or name`,
-        );
-        return;
-      }
+// Validate and resolve origin place securely
+if (rideData.origin) {
+  let originPlace = await Places.findOneAsync({
+    _id: rideData.origin,
+    ownerId: this.userId
+  });
+
+  if (!originPlace) {
+    originPlace = await Places.findOneAsync({
+      text: rideData.origin,
+      ownerId: this.userId
+    });
+
+    if (originPlace && originPlace._id && typeof originPlace._id === "string") {
+      console.log(
+        `    Resolved origin "${rideData.origin}" to place ID: ${originPlace._id}`
+      );
+      rideData.origin = originPlace._id;
+    } else {
+      console.error(
+        `    Error: Origin place "${rideData.origin}" not found or does not belong to this user`
+      );
+      return;
     }
   }
+}
 
   if (rideData.destination) {
     let destinationPlace = await Places.findOneAsync({
