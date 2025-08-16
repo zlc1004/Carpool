@@ -1,79 +1,93 @@
 import { Meteor } from "meteor/meteor";
 import { check } from "meteor/check";
 import svgCaptcha from "svg-captcha";
+import crypto from "crypto";
 import { Captcha } from "./Captcha";
+
+// Mongo collection for captchas
+export const Captcha = new Mongo.Collection("captchas");
+
+// Generate secure random token
+function generateToken() {
+  return crypto.randomBytes(32).toString("hex"); // 64-character hex
+}
+
+// Hash captcha answer
+function hashAnswer(answer) {
+  return crypto.createHash("sha256")
+    .update(answer.toLowerCase().trim())
+    .digest("hex");
+}
+
+if (Meteor.isServer) {
+  // Unique token index
+  Captcha.rawCollection().createIndex({ token: 1 }, { unique: true });
+
+  // auto-expire after 10 minutes
+  Captcha.rawCollection().createIndex(
+    { timestamp: 1 },
+    { expireAfterSeconds: 600 }
+  );
+}
 
 Meteor.methods({
   async "captcha.generate"() {
-    // Generate CAPTCHA
     const captcha = svgCaptcha.create({
-      size: 5, // 5 characters
-      noise: 2, // noise level
-      color: true, // use colors
-      background: "#f0f0f0", // background color
+      size: 5,
+      noise: 2,
+      color: true,
+      background: "#f0f0f0",
       width: 150,
       height: 50,
       fontSize: 40,
     });
 
-    // Generate a unique session ID
+    const token = generateToken();
 
-    // Store the CAPTCHA text with session ID (expires after 10 minutes) in MongoDB
-    const sessionId = await Captcha.insertAsync({
-      text: captcha.text,
-      timestamp: Date.now(),
-      solved: false,
+    await Captcha.insertAsync({
+      token,
+      hash: hashAnswer(captcha.text),
+      timestamp: new Date(),
       used: false,
+      attempts: 0, // track failed attempts
     });
 
-    // Clean up old sessions (older than 10 minutes)
-    const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
-    await Captcha.removeAsync({ timestamp: { $lt: tenMinutesAgo } });
-
     return {
-      sessionId: sessionId,
+      token,
       svg: captcha.data,
     };
   },
 
-  async "captcha.verify"(sessionId, userInput) {
-    check(sessionId, String);
+  async "captcha.verify"(token, userInput) {
+    check(token, String);
     check(userInput, String);
-    const session = await Captcha.findOneAsync({ _id: sessionId });
+
+    const session = await Captcha.findOneAsync({ token });
 
     if (!session) {
-      throw new Meteor.Error("invalid-captcha", "CAPTCHA session not found or expired");
+      throw new Meteor.Error("invalid-captcha", "CAPTCHA not found or expired");
     }
 
-    // Check if session is expired (10 minutes)
-    const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
-    if (session.timestamp < tenMinutesAgo) {
-      throw new Meteor.Error("expired-captcha", "CAPTCHA has expired");
+    if (session.used) {
+      throw new Meteor.Error("captcha-used", "CAPTCHA already used");
     }
 
-    // Verify the CAPTCHA
-    const isValid = session.text === userInput.trim();
+    if (session.attempts >= 3) {
+      // Auto-expire after too many attempts
+      await Captcha.updateAsync({ token }, { $set: { used: true } });
+      throw new Meteor.Error("too-many-attempts", "CAPTCHA invalidated due to too many failed attempts");
+    }
+
+    const isValid = session.hash === hashAnswer(userInput);
 
     if (isValid) {
-      // Mark as solved on correct answer
-      await Captcha.updateAsync(session, {
-        text: session.text,
-        timestamp: session.timestamp,
-        solved: true,
-        used: session.used,
-      });
+      await Captcha.updateAsync({ token }, { $set: { used: true } });
     } else {
-      // Mark as used on incorrect answer to prevent brute force attacks
-      await Captcha.updateAsync(session, {
-        text: session.text,
-        timestamp: session.timestamp,
-        solved: false,
-        used: true,
-      });
+      await Captcha.updateAsync(
+        { token },
+        { $inc: { attempts: 1 } }
+      );
     }
-
-    // Clean up old sessions (older than 10 minutes)
-    await Captcha.removeAsync({ timestamp: { $lt: tenMinutesAgo } });
 
     return isValid;
   },
