@@ -142,8 +142,6 @@ initWorker() {
       this.worker = null;
     }
   }
-}
-
 
   /**
    * Initialise IndexedDB for persistent tile caching
@@ -196,8 +194,7 @@ initWorker() {
       if (cached.expires > Date.now()) {
         return cached.imageUrl;
       }
-        this.cache.delete(tileId);
-
+      this.cache.delete(tileId);
     }
 
     // Check if already loading
@@ -238,7 +235,7 @@ initWorker() {
     if (this.worker) {
       return this.fetchTileWithWorker(tileUrl, tileId);
     }
-      return this.fetchTileMainThread(tileUrl, tileId);
+    return this.fetchTileMainThread(tileUrl, tileId);
 
   }
 
