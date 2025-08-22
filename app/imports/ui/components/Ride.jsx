@@ -6,7 +6,9 @@ import { withTracker } from "meteor/react-meteor-data";
 import { Meteor } from "meteor/meteor";
 import swal from "sweetalert";
 import { Places } from "../../api/places/Places";
+import { RideSessions } from "../../api/rideSession/RideSession";
 import RouteMapView from "./RouteMapView";
+import { getCurrentLocation } from "../utils/geolocation";
 import { MobileOnly, DesktopOnly } from "../layouts/Devices";
 import {
   RideCard,
@@ -30,10 +32,22 @@ import {
   ShareButton,
   JoinButton,
   ChatButton,
+  StartRideButton,
+  ConfirmPickupButton,
+  ShowCodeButton,
+  CompleteRideButton,
+  DropoffButton,
+  ViewHistoryButton,
   MapButton,
   ShareIcon,
   JoinIcon,
   ChatIcon,
+  StartRideIcon,
+  ConfirmPickupIcon,
+  ShowCodeIcon,
+  CompleteRideIcon,
+  DropoffIcon,
+  ViewHistoryIcon,
   MapIcon,
   Spinner,
   ModalOverlay,
@@ -50,6 +64,22 @@ import {
   ModalActions,
   CopyButton,
   DoneButton,
+  PickupOverlay,
+  PickupModal,
+  PickupModalHeader,
+  PickupModalTitle,
+  RiderList,
+  RiderItem,
+  RiderName,
+  RiderStatus,
+  CodeInputSection,
+  CodeDisplay,
+  CodeDigit,
+  CodeInput,
+  VerifyButton,
+  CodeModalContent,
+  FullCodeDisplay,
+  CodeInstructions,
 } from "../styles/Ride";
 
 /** Ride component with clean design and join functionality */
@@ -62,6 +92,13 @@ class Ride extends React.Component {
       isGenerating: false,
       isExistingCode: false,
       mapModalOpen: false,
+      pickupModalOpen: false,
+      codeModalOpen: false,
+      selectedRiderId: null,
+      codeInput: "",
+      verifyingCode: false,
+      riderCodes: {}, // Store code hints for riders
+      fullCode: null, // For rider's code display
     };
   }
 
@@ -101,7 +138,7 @@ class Ride extends React.Component {
     const { shareCode } = this.state;
     if (shareCode) {
       // eslint-disable-next-line no-undef
-      const inviteLink = `${window.location.origin}/#/myRides?code=${shareCode.replace("-", "")}`;
+      const inviteLink = `${window.location.origin}/my-rides?code=${shareCode.replace("-", "")}`;
 
       // Copy to clipboard
       // eslint-disable-next-line no-undef
@@ -205,6 +242,436 @@ class Ride extends React.Component {
 
     // Handle legacy schema - check if user is the rider
     return rider === currentUser.username;
+  };
+
+  canStartRide = () => {
+    const { ride, rideSessions } = this.props;
+    const currentUser = Meteor.user();
+
+    // Must be the driver
+    if (!this.isCurrentUserDriver()) {
+      return false;
+    }
+
+    // Check if ride already has a session
+    const existingSession = rideSessions.find(session => session.rideId === ride._id);
+    if (existingSession) {
+      return false;
+    }
+
+    // Check if ride is in the future (upcoming ride)
+    const now = new Date();
+    const rideDate = new Date(ride.date);
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const rideDateOnly = new Date(rideDate.getFullYear(), rideDate.getMonth(), rideDate.getDate());
+
+    return rideDateOnly >= today;
+  };
+
+  handleStartRide = () => {
+    const { ride } = this.props;
+
+    this.setState({ isGenerating: true });
+
+    // Get riders for the session
+    const riders = ride.riders && Array.isArray(ride.riders) ? ride.riders : [];
+
+    Meteor.call("rideSessions.create", ride._id, Meteor.userId(), riders, (error, sessionId) => {
+      this.setState({ isGenerating: false });
+      if (error) {
+        swal("Error", error.reason || error.message, "error");
+      } else {
+        swal("Success", "Ride session created successfully! You can now start tracking your ride.", "success");
+      }
+    });
+  };
+
+  canStartActiveRide = () => {
+    const { ride, rideSessions } = this.props;
+
+    // Must be the driver
+    if (!this.isCurrentUserDriver()) {
+      return false;
+    }
+
+    // Find the session for this ride
+    const session = rideSessions.find(session =>
+      session.rideId === ride._id &&
+      !session.finished
+    );
+
+    if (!session) {
+      return false;
+    }
+
+    // Can start if session is created but not yet started
+    return session.status === "created" && !session.timeline.started;
+  };
+
+  canConfirmPickup = () => {
+    const { ride, rideSessions } = this.props;
+
+    // Must be the driver
+    if (!this.isCurrentUserDriver()) {
+      return false;
+    }
+
+    // Find the active session for this ride
+    const session = rideSessions.find(session =>
+      session.rideId === ride._id &&
+      session.status === "active" &&
+      !session.finished
+    );
+
+    if (!session) {
+      return false;
+    }
+
+    // Check if there are unpicked riders
+    const unpickedRiders = session.riders.filter(riderId => {
+      const progress = session.progress[riderId];
+      return progress && !progress.pickedUp && !progress.codeError;
+    });
+
+    return unpickedRiders.length > 0;
+  };
+
+  canCompleteRide = () => {
+    const { ride, rideSessions } = this.props;
+
+    // Must be the driver
+    if (!this.isCurrentUserDriver()) {
+      return false;
+    }
+
+    // Find the active session for this ride
+    const session = rideSessions.find(session =>
+      session.rideId === ride._id &&
+      session.status === "active" &&
+      !session.finished
+    );
+
+    if (!session) {
+      return false;
+    }
+
+    // Check if all riders have been picked up (and optionally dropped off)
+    const allRidersPickedUp = session.riders.every(riderId => {
+      const progress = session.progress[riderId];
+      return progress && progress.pickedUp;
+    });
+
+    return allRidersPickedUp;
+  };
+
+  canShowCode = () => {
+    const { ride, rideSessions } = this.props;
+    const currentUser = Meteor.user();
+
+    if (!currentUser) return false;
+
+    // Find the active session for this ride
+    const session = rideSessions.find(session =>
+      session.rideId === ride._id &&
+      (session.status === "active" || session.status === "created") &&
+      !session.finished
+    );
+
+    if (!session) {
+      return false;
+    }
+
+    // User must be a rider in this session
+    return session.riders.includes(currentUser._id);
+  };
+
+  canConfirmDropoff = () => {
+    const { ride, rideSessions } = this.props;
+    const currentUser = Meteor.user();
+
+    if (!currentUser) return false;
+
+    // Find the active session for this ride
+    const session = rideSessions.find(session =>
+      session.rideId === ride._id &&
+      session.status === "active" &&
+      !session.finished
+    );
+
+    if (!session) {
+      return false;
+    }
+
+    // User must be a rider in this session
+    if (!session.riders.includes(currentUser._id)) {
+      return false;
+    }
+
+    // Check if rider has been picked up but not dropped off
+    const riderProgress = session.progress[currentUser._id];
+    return riderProgress && riderProgress.pickedUp && !riderProgress.droppedOff;
+  };
+
+  canViewHistory = () => {
+    const { ride, rideSessions } = this.props;
+    const currentUser = Meteor.user();
+
+    if (!currentUser) return false;
+
+    // Find any completed session for this ride
+    const session = rideSessions.find(session =>
+      session.rideId === ride._id &&
+      (session.finished || session.status === "completed" || session.status === "cancelled")
+    );
+
+    if (!session) {
+      return false;
+    }
+
+    // User must be driver, rider, or admin
+    const user = Meteor.users.findOne(currentUser._id);
+    const isAdmin = user?.roles?.includes("admin");
+    const isDriver = session.driverId === currentUser._id;
+    const isRider = session.riders.includes(currentUser._id);
+
+    return isDriver || isRider || isAdmin;
+  };
+
+  handleViewHistory = () => {
+    const { ride, rideSessions } = this.props;
+
+    // Find the completed session for this ride
+    const session = rideSessions.find(session =>
+      session.rideId === ride._id &&
+      (session.finished || session.status === "completed" || session.status === "cancelled")
+    );
+
+    if (session) {
+      // Navigate to the RideHistory page
+      this.props.history.push(`/ride-history/${session._id}`);
+    }
+  };
+
+  handleStartActiveRide = async () => {
+    const sessionId = this.getSessionId();
+    if (!sessionId) return;
+
+    this.setState({ isGenerating: true });
+
+    try {
+      // Get current location
+      const location = await getCurrentLocation();
+
+      // Start the ride session
+      Meteor.call("rideSessions.start", sessionId, location, (error) => {
+        this.setState({ isGenerating: false });
+        if (error) {
+          swal("Error", error.reason || error.message, "error");
+        } else {
+          swal("Success!", "Ride started successfully! You can now confirm rider pickups.", "success");
+        }
+      });
+    } catch (error) {
+      this.setState({ isGenerating: false });
+      swal("Error", "Failed to get location: " + error.message, "error");
+    }
+  };
+
+  handleCompleteRide = async () => {
+    const sessionId = this.getSessionId();
+    if (!sessionId) return;
+
+    // Confirm before completing
+    const willComplete = await swal({
+      title: "Complete Ride?",
+      text: "Are you sure you want to complete this ride? This action cannot be undone.",
+      icon: "warning",
+      buttons: {
+        cancel: "Cancel",
+        confirm: {
+          text: "Complete Ride",
+          className: "swal-button--confirm",
+        },
+      },
+    });
+
+    if (!willComplete) return;
+
+    this.setState({ isGenerating: true });
+
+    try {
+      // Get current location
+      const location = await getCurrentLocation();
+
+      // Complete the ride session
+      Meteor.call("rideSessions.finish", sessionId, location, (error) => {
+        this.setState({ isGenerating: false });
+        if (error) {
+          swal("Error", error.reason || error.message, "error");
+        } else {
+          swal("Success!", "Ride completed successfully! Thank you for driving.", "success");
+        }
+      });
+    } catch (error) {
+      this.setState({ isGenerating: false });
+      swal("Error", "Failed to get location: " + error.message, "error");
+    }
+  };
+
+  handleShowCode = () => {
+    const { ride } = this.props;
+    const currentUser = Meteor.user();
+
+    if (!currentUser) return;
+
+    Meteor.call("rideSessions.getPickupCodeHint", this.getSessionId(), currentUser._id, (error, result) => {
+      if (error) {
+        swal("Error", error.reason || error.message, "error");
+      } else {
+        this.setState({
+          codeModalOpen: true,
+          fullCode: result.fullCode
+        });
+      }
+    });
+  };
+
+  handleConfirmDropoff = async () => {
+    const sessionId = this.getSessionId();
+    const currentUser = Meteor.user();
+
+    if (!sessionId || !currentUser) return;
+
+    // Confirm before marking as dropped off
+    const willConfirm = await swal({
+      title: "Confirm Drop-off?",
+      text: "Are you sure you want to mark yourself as dropped off at this location?",
+      icon: "info",
+      buttons: {
+        cancel: "Cancel",
+        confirm: {
+          text: "Confirm Drop-off",
+          className: "swal-button--confirm",
+        },
+      },
+    });
+
+    if (!willConfirm) return;
+
+    this.setState({ isGenerating: true });
+
+    try {
+      // Get current location
+      const location = await getCurrentLocation();
+
+      // Mark rider as dropped off
+      Meteor.call("rideSessions.dropoffRider", sessionId, currentUser._id, location, (error) => {
+        this.setState({ isGenerating: false });
+        if (error) {
+          swal("Error", error.reason || error.message, "error");
+        } else {
+          swal("Success!", "You have been marked as dropped off. Thank you for riding!", "success");
+        }
+      });
+    } catch (error) {
+      this.setState({ isGenerating: false });
+      swal("Error", "Failed to get location: " + error.message, "error");
+    }
+  };
+
+  getSessionId = () => {
+    const { ride, rideSessions } = this.props;
+    const session = rideSessions.find(session =>
+      session.rideId === ride._id &&
+      !session.finished
+    );
+    return session ? session._id : null;
+  };
+
+  getUsernameFromId = (userId) => {
+    const { users } = this.props;
+    const user = users?.find(u => u._id === userId);
+    return user?.username || userId; // Fallback to ID if username not available
+  };
+
+
+
+  handleConfirmPickup = () => {
+    this.setState({ pickupModalOpen: true });
+    this.loadRiderCodes();
+  };
+
+  loadRiderCodes = () => {
+    const sessionId = this.getSessionId();
+    if (!sessionId) return;
+
+    const { rideSessions } = this.props;
+    const session = rideSessions.find(s => s._id === sessionId);
+    if (!session) return;
+
+    const riderCodes = {};
+    session.riders.forEach(riderId => {
+      Meteor.call("rideSessions.getPickupCodeHint", sessionId, riderId, (error, result) => {
+        if (!error && result) {
+          this.setState(prev => ({
+            riderCodes: {
+              ...prev.riderCodes,
+              [riderId]: result
+            }
+          }));
+        }
+      });
+    });
+  };
+
+  handleRiderSelect = (riderId) => {
+    this.setState({
+      selectedRiderId: riderId,
+      codeInput: ""
+    });
+  };
+
+  handleCodeVerification = () => {
+    const { selectedRiderId, codeInput } = this.state;
+    const sessionId = this.getSessionId();
+
+    if (!sessionId || !selectedRiderId || codeInput.length !== 2) return;
+
+    this.setState({ verifyingCode: true });
+
+    Meteor.call("rideSessions.verifyPickupCode", sessionId, selectedRiderId, codeInput, (error, result) => {
+      this.setState({ verifyingCode: false });
+
+      if (error) {
+        swal("Verification Failed", error.reason || error.message, "error");
+        // Reload rider codes to get updated attempt count
+        this.loadRiderCodes();
+      } else {
+        swal("Success!", result.message, "success");
+        this.setState({
+          pickupModalOpen: false,
+          selectedRiderId: null,
+          codeInput: "",
+          riderCodes: {}
+        });
+      }
+    });
+  };
+
+  closePickupModal = () => {
+    this.setState({
+      pickupModalOpen: false,
+      selectedRiderId: null,
+      codeInput: "",
+      riderCodes: {}
+    });
+  };
+
+  closeCodeModal = () => {
+    this.setState({
+      codeModalOpen: false,
+      fullCode: null
+    });
   };
 
   handleJoinRide = () => {
@@ -362,6 +829,13 @@ class Ride extends React.Component {
 
           {(this.canShareRide() ||
             this.canJoinRide() ||
+            this.canStartRide() ||
+            this.canStartActiveRide() ||
+            this.canConfirmPickup() ||
+            this.canCompleteRide() ||
+            this.canShowCode() ||
+            this.canConfirmDropoff() ||
+            this.canViewHistory() ||
             this.canAccessChat() ||
             (this.getPlaceCoordinates(ride.origin) &&
              this.getPlaceCoordinates(ride.destination))) && (
@@ -393,6 +867,86 @@ class Ride extends React.Component {
                     <JoinIcon>🚗</JoinIcon>
                   )}
                 </JoinButton>
+              )}
+              {this.canStartRide() && (
+                <StartRideButton
+                  className={isGenerating ? "loading" : ""}
+                  onClick={this.handleStartRide}
+                  disabled={isGenerating}
+                  title="Start Ride Session"
+                >
+                  {isGenerating ? (
+                    <Spinner />
+                  ) : (
+                    <StartRideIcon>🚀</StartRideIcon>
+                  )}
+                </StartRideButton>
+              )}
+              {this.canStartActiveRide() && (
+                <StartRideButton
+                  className={isGenerating ? "loading" : ""}
+                  onClick={this.handleStartActiveRide}
+                  disabled={isGenerating}
+                  title="Start Active Ride"
+                >
+                  {isGenerating ? (
+                    <Spinner />
+                  ) : (
+                    <StartRideIcon>▶️</StartRideIcon>
+                  )}
+                </StartRideButton>
+              )}
+              {this.canConfirmPickup() && (
+                <ConfirmPickupButton
+                  onClick={this.handleConfirmPickup}
+                  title="Confirm Pickup"
+                >
+                  <ConfirmPickupIcon>✅</ConfirmPickupIcon>
+                </ConfirmPickupButton>
+              )}
+              {this.canCompleteRide() && (
+                <CompleteRideButton
+                  className={isGenerating ? "loading" : ""}
+                  onClick={this.handleCompleteRide}
+                  disabled={isGenerating}
+                  title="Complete Ride"
+                >
+                  {isGenerating ? (
+                    <Spinner />
+                  ) : (
+                    <CompleteRideIcon>🏁</CompleteRideIcon>
+                  )}
+                </CompleteRideButton>
+              )}
+              {this.canShowCode() && (
+                <ShowCodeButton
+                  onClick={this.handleShowCode}
+                  title="Show Pickup Code"
+                >
+                  <ShowCodeIcon>🔢</ShowCodeIcon>
+                </ShowCodeButton>
+              )}
+              {this.canConfirmDropoff() && (
+                <DropoffButton
+                  className={isGenerating ? "loading" : ""}
+                  onClick={this.handleConfirmDropoff}
+                  disabled={isGenerating}
+                  title="Confirm Drop-off"
+                >
+                  {isGenerating ? (
+                    <Spinner />
+                  ) : (
+                    <DropoffIcon>📍</DropoffIcon>
+                  )}
+                </DropoffButton>
+              )}
+              {this.canViewHistory() && (
+                <ViewHistoryButton
+                  onClick={this.handleViewHistory}
+                  title="View Ride History"
+                >
+                  <ViewHistoryIcon>📋</ViewHistoryIcon>
+                </ViewHistoryButton>
               )}
               {this.canAccessChat() && (
                 <ChatButton
@@ -496,7 +1050,196 @@ class Ride extends React.Component {
                 </ModalContent>
 
                 <ModalActions>
-                  <DoneButton onClick={this.closeMapModal}>✓ Close</DoneButton>
+                  <DoneButton onClick={this.closeMapModal}>✅ Close</DoneButton>
+                </ModalActions>
+              </Modal>
+            </ModalOverlay>,
+            document.body,
+          )}
+
+        {/* Pickup Confirmation Modal - Rendered via Portal */}
+        {this.state.pickupModalOpen &&
+          ReactDOM.createPortal(
+            <PickupOverlay onClick={this.closePickupModal}>
+              <PickupModal onClick={(e) => e.stopPropagation()}>
+                <PickupModalHeader>
+                  <PickupModalTitle>
+                    ✅ Confirm Pickup
+                  </PickupModalTitle>
+                  <ModalClose onClick={this.closePickupModal}>✕</ModalClose>
+                </PickupModalHeader>
+
+                <RiderList>
+                  {this.props.rideSessions
+                    .find(session => session.rideId === ride._id && !session.finished)
+                    ?.riders
+                    .filter(riderId => {
+                      const session = this.props.rideSessions.find(s => s.rideId === ride._id && !s.finished);
+                      const progress = session?.progress[riderId];
+                      return progress && !progress.pickedUp;
+                    })
+                    .map(riderId => {
+                      const session = this.props.rideSessions.find(s => s.rideId === ride._id && !s.finished);
+                      const progress = session?.progress[riderId];
+                      const riderCodeData = this.state.riderCodes[riderId];
+                      const isSelected = this.state.selectedRiderId === riderId;
+                      const isDisabled = progress?.codeError;
+
+                      return (
+                        <RiderItem
+                          key={riderId}
+                          error={isDisabled}
+                          disabled={isDisabled}
+                          onClick={() => !isDisabled && this.handleRiderSelect(riderId)}
+                        >
+                          <RiderName>{this.getUsernameFromId(riderId)}</RiderName>
+                          <RiderStatus error={isDisabled}>
+                            {isDisabled
+                              ? "Code verification disabled (too many attempts)"
+                              : `Attempts remaining: ${riderCodeData?.attemptsRemaining ?? 5}`
+                            }
+                          </RiderStatus>
+
+                          {isSelected && !isDisabled && riderCodeData && (
+                            <CodeInputSection>
+                              <CodeDisplay>
+                                <CodeDigit filled>{riderCodeData.hint?.[0] || "?"}</CodeDigit>
+                                <CodeDigit filled>{riderCodeData.hint?.[1] || "?"}</CodeDigit>
+                                <CodeDigit>_</CodeDigit>
+                                <CodeDigit>_</CodeDigit>
+                              </CodeDisplay>
+                              <div style={{ display: "flex", alignItems: "center" }}>
+                                <CodeInput
+                                  type="text"
+                                  maxLength="2"
+                                  placeholder="??"
+                                  value={this.state.codeInput}
+                                  onChange={(e) => this.setState({ codeInput: e.target.value.replace(/\D/g, '') })}
+                                  disabled={this.state.verifyingCode}
+                                />
+                                <VerifyButton
+                                  onClick={this.handleCodeVerification}
+                                  disabled={this.state.verifyingCode || this.state.codeInput.length !== 2}
+                                >
+                                  {this.state.verifyingCode ? "..." : "Verify"}
+                                </VerifyButton>
+                              </div>
+                            </CodeInputSection>
+                          )}
+                        </RiderItem>
+                      );
+                    })}
+                </RiderList>
+              </PickupModal>
+            </PickupOverlay>,
+            document.body,
+          )}
+
+        {/* Pickup Confirmation Modal - Rendered via Portal */}
+        {this.state.pickupModalOpen &&
+          ReactDOM.createPortal(
+            <PickupOverlay onClick={this.closePickupModal}>
+              <PickupModal onClick={(e) => e.stopPropagation()}>
+                <PickupModalHeader>
+                  <PickupModalTitle>
+                    ✅ Confirm Pickup
+                  </PickupModalTitle>
+                  <ModalClose onClick={this.closePickupModal}>✕</ModalClose>
+                </PickupModalHeader>
+
+                <RiderList>
+                  {this.props.rideSessions
+                    .find(session => session.rideId === ride._id && !session.finished)
+                    ?.riders
+                    .filter(riderId => {
+                      const session = this.props.rideSessions.find(s => s.rideId === ride._id && !s.finished);
+                      const progress = session?.progress[riderId];
+                      return progress && !progress.pickedUp;
+                    })
+                    .map(riderId => {
+                      const session = this.props.rideSessions.find(s => s.rideId === ride._id && !s.finished);
+                      const progress = session?.progress[riderId];
+                      const riderCodeData = this.state.riderCodes[riderId];
+                      const isSelected = this.state.selectedRiderId === riderId;
+                      const isDisabled = progress?.codeError;
+
+                      return (
+                        <RiderItem
+                          key={riderId}
+                          error={isDisabled}
+                          disabled={isDisabled}
+                          onClick={() => !isDisabled && this.handleRiderSelect(riderId)}
+                        >
+                          <RiderName>{this.getUsernameFromId(riderId)}</RiderName>
+                          <RiderStatus error={isDisabled}>
+                            {isDisabled
+                              ? "Code verification disabled (too many attempts)"
+                              : `Attempts remaining: ${riderCodeData?.attemptsRemaining ?? 5}`
+                            }
+                          </RiderStatus>
+
+                          {isSelected && !isDisabled && riderCodeData && (
+                            <CodeInputSection>
+                              <CodeDisplay>
+                                <CodeDigit filled>{riderCodeData.hint?.[0] || "?"}</CodeDigit>
+                                <CodeDigit filled>{riderCodeData.hint?.[1] || "?"}</CodeDigit>
+                                <CodeDigit>_</CodeDigit>
+                                <CodeDigit>_</CodeDigit>
+                              </CodeDisplay>
+                              <div style={{ display: "flex", alignItems: "center" }}>
+                                <CodeInput
+                                  type="text"
+                                  maxLength="2"
+                                  placeholder="??"
+                                  value={this.state.codeInput}
+                                  onChange={(e) => this.setState({ codeInput: e.target.value.replace(/\D/g, '') })}
+                                  disabled={this.state.verifyingCode}
+                                />
+                                <VerifyButton
+                                  onClick={this.handleCodeVerification}
+                                  disabled={this.state.verifyingCode || this.state.codeInput.length !== 2}
+                                >
+                                  {this.state.verifyingCode ? "..." : "Verify"}
+                                </VerifyButton>
+                              </div>
+                            </CodeInputSection>
+                          )}
+                        </RiderItem>
+                      );
+                    })}
+                </RiderList>
+              </PickupModal>
+            </PickupOverlay>,
+            document.body,
+          )}
+
+        {/* Code Display Modal for Riders - Rendered via Portal */}
+        {this.state.codeModalOpen &&
+          ReactDOM.createPortal(
+            <ModalOverlay onClick={this.closeCodeModal}>
+              <Modal onClick={(e) => e.stopPropagation()}>
+                <ModalHeader>
+                  <ModalTitle>
+                    <ModalIcon>🔢</ModalIcon>
+                    Your Pickup Code
+                  </ModalTitle>
+                  <ModalClose onClick={this.closeCodeModal}>✕</ModalClose>
+                </ModalHeader>
+
+                <CodeModalContent>
+                  <CodeInstructions>
+                    Show this code to your driver for pickup verification:
+                  </CodeInstructions>
+                  <FullCodeDisplay>
+                    {this.state.fullCode}
+                  </FullCodeDisplay>
+                  <CodeInstructions>
+                    The driver will ask for the last 2 digits only.
+                  </CodeInstructions>
+                </CodeModalContent>
+
+                <ModalActions>
+                  <DoneButton onClick={this.closeCodeModal}>✓ Got it</DoneButton>
                 </ModalActions>
               </Modal>
             </ModalOverlay>,
@@ -510,14 +1253,43 @@ class Ride extends React.Component {
 Ride.propTypes = {
   ride: PropTypes.object.isRequired,
   places: PropTypes.array.isRequired,
+  rideSessions: PropTypes.array.isRequired,
+  users: PropTypes.array.isRequired,
+  ready: PropTypes.bool.isRequired,
   history: PropTypes.object.isRequired,
 };
 
 export default withRouter(
-  withTracker(() => {
+  withTracker((props) => {
     Meteor.subscribe("places.options");
+    const rideSessionsSubscription = Meteor.subscribe("rideSessions");
+    const rideSessions = RideSessions.find({}).fetch();
+
+    // Get all user IDs from ride sessions for username resolution
+    const allUserIds = [];
+    rideSessions.forEach(session => {
+      if (session.rideId === props.ride?._id) {
+        allUserIds.push(session.driverId, session.createdBy, ...session.riders);
+        // Add user IDs from events
+        Object.values(session.events || {}).forEach(event => {
+          if (event.by) allUserIds.push(event.by);
+          if (event.riderId) allUserIds.push(event.riderId);
+        });
+      }
+    });
+
+    // Remove duplicates and subscribe to user data
+    const uniqueUserIds = [...new Set(allUserIds)].filter(Boolean);
+    let usersSubscription = { ready: () => true };
+    if (uniqueUserIds.length > 0) {
+      usersSubscription = Meteor.subscribe("users.byIds", uniqueUserIds);
+    }
+
     return {
       places: Places.find({}).fetch(),
+      rideSessions,
+      users: Meteor.users.find({}).fetch(),
+      ready: rideSessionsSubscription.ready() && usersSubscription.ready(),
     };
   })(Ride),
 );

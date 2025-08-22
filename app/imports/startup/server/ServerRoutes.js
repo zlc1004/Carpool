@@ -1,6 +1,36 @@
 import { WebApp } from "meteor/webapp";
 import { Images } from "../../api/images/Images";
 
+// Set Content Security Policy headers for OneSignal support
+WebApp.connectHandlers.use("/", (req, res, next) => {
+  // Only set CSP for HTML responses to avoid breaking API responses
+  if (req.url === '/' || req.url.endsWith('.html') || !req.url.includes('.')) {
+
+    // In development, use a more permissive CSP for easier testing
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+
+    if (isDevelopment && process.env.DISABLE_CSP === 'true') {
+      // Completely disable CSP for development testing
+    } else {
+      const cspHeader = [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.onesignal.com https://onesignal.com https://api.onesignal.com",
+        "connect-src 'self' https://onesignal.com https://*.onesignal.com https://api.onesignal.com https://cdn.onesignal.com wss: ws: https://nominatim.carp.school https://tileserver.carp.school https://osrm.carp.school",
+        "img-src 'self' data: https: http: https://onesignal.com https://*.onesignal.com",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' data: https: https://fonts.gstatic.com",
+        "worker-src 'self' blob: https://cdn.onesignal.com",
+        "frame-src https://onesignal.com https://*.onesignal.com",
+        "object-src 'none'",
+        "base-uri 'self'"
+      ].join('; ');
+
+      res.setHeader('Content-Security-Policy', cspHeader);
+    }
+  }
+  next();
+});
+
 // Create endpoint to serve images directly: /image/<uuid>
 WebApp.connectHandlers.use("/image", async (req, res, _next) => {
   try {
@@ -60,4 +90,23 @@ WebApp.connectHandlers.use("/image", async (req, res, _next) => {
 WebApp.connectHandlers.use("/health", (req, res, _next) => {
   res.writeHead(200, { "Content-Type": "text/plain" });
   res.end("OK");
+});
+
+// Client-side routing fallback for BrowserRouter
+// Serve index.html for all client-side routes that don't match API endpoints or static files
+WebApp.connectHandlers.use((req, res, next) => {
+  // Skip if this is an API endpoint, static file, or already handled
+  if (req.url.startsWith('/api') ||
+      req.url.startsWith('/sockjs') ||
+      req.url.startsWith('/packages') ||
+      req.url.startsWith('/image') ||
+      req.url.startsWith('/health') ||
+      req.url.includes('.') || // Skip requests for files with extensions
+      req.method !== 'GET') {
+    return next();
+  }
+
+  // For client-side routes, let Meteor handle serving the main HTML
+  // This ensures BrowserRouter routes work properly
+  next();
 });

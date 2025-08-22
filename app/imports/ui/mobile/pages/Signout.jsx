@@ -1,5 +1,5 @@
 import React from "react";
-import { Meteor } from "meteor/meteor";
+import { logoutWithUnsubscription } from "../../utils/logout";
 import {
   Container,
   Content,
@@ -28,7 +28,7 @@ export default class MobileSignout extends React.Component {
   componentDidMount() {
     // Add a slight delay for better UX, then sign out
     setTimeout(() => {
-      Meteor.logout(() => {
+      logoutWithUnsubscription(() => {
         this.setState({
           isSigningOut: false,
           signedOut: true,
@@ -57,7 +57,7 @@ export default class MobileSignout extends React.Component {
               <Title>You are signed out.</Title>
 
               <Actions>
-                <ButtonPrimary to="/signin">Sign In Again</ButtonPrimary>
+                <ButtonPrimary to="/login">Sign In Again</ButtonPrimary>
                 <ButtonSecondary to="/">Go to Home</ButtonSecondary>
               </Actions>
             </SuccessSection>

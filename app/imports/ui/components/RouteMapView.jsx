@@ -95,73 +95,72 @@ const RouteMapView = ({
         [end.lng, end.lat],
       ],
     });
-  // Find route using OSRM with fallback to straight line
-  const findRouteOSRM = async (start, end) => {
+  // Find route using optimized routing service
+  const findRouteOptimized = async (start, end) => {
     try {
-      const baseUrl = "https://osrm.carp.school/route/v1/driving";
-      const coords = `${start.lng},${start.lat};${end.lng},${end.lat}`;
-      const osrmUrl = `${baseUrl}/${coords}?overview=full&geometries=geojson`;
-      const response = await fetch(osrmUrl);
+      // Use optimized routing service with caching
+      const { getRoute } = await import("../utils/mapServices");
+      const routeData = await getRoute(start, end, { service: 'driving' });
 
-      if (!response.ok) {
-        throw new Error(`OSRM routing failed: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      if (data.routes && data.routes.length > 0) {
-        return data.routes[0].geometry;
-      }
-      throw new Error("No route found");
+      return routeData.geometry;
     } catch (routingError) {
+      console.warn("Optimized routing failed, using straight line:", routingError);
       // Fallback to straight line
       return createStraightLineGeometry(start, end);
     }
   };
 
-  // Find and display route
-  const findAndDisplayRoute = async (showRefreshAnimation = false) => {
+  // Find and display route (non-blocking)
+  const findAndDisplayRoute = (showRefreshAnimation = false) => {
     if (!startCoord || !endCoord || !mapInstanceRef.current) {
       return;
     }
 
+    // Immediately show loading state (non-blocking UI update)
     if (showRefreshAnimation) {
       setIsRefreshing(true);
     }
 
-    try {
-      const geometry = await findRouteOSRM(startCoord, endCoord);
+    // Use setTimeout to ensure UI updates immediately before starting async work
+    setTimeout(async () => {
+      try {
+        const geometry = await findRouteOptimized(startCoord, endCoord);
 
-      // Remove existing route
-      if (routeLayerRef.current) {
-        mapInstanceRef.current.removeLayer(routeLayerRef.current);
+        // Only proceed if component is still mounted and coordinates haven't changed
+        if (!mapInstanceRef.current) return;
+
+        // Remove existing route
+        if (routeLayerRef.current) {
+          mapInstanceRef.current.removeLayer(routeLayerRef.current);
+        }
+
+        // Add new route to map
+        const routeLayer = L.geoJSON(geometry, {
+          style: {
+            color: "#007bff",
+            weight: 4,
+            opacity: 0.8,
+          },
+        }).addTo(mapInstanceRef.current);
+
+        routeLayerRef.current = routeLayer;
+
+        // Fit map to show entire route
+        const group = new L.FeatureGroup([
+          startMarkerRef.current,
+          endMarkerRef.current,
+          routeLayer,
+        ]);
+        mapInstanceRef.current.fitBounds(group.getBounds(), { padding: [20, 20] });
+      } catch (error) {
+        console.error("Route finding error:", error);
+        // Route errors are handled gracefully by fallback in mapServices
+      } finally {
+        if (showRefreshAnimation) {
+          setIsRefreshing(false);
+        }
       }
-
-      // Add new route to map
-      const routeLayer = L.geoJSON(geometry, {
-        style: {
-          color: "#007bff",
-          weight: 4,
-          opacity: 0.8,
-        },
-      }).addTo(mapInstanceRef.current);
-
-      routeLayerRef.current = routeLayer;
-
-      // Fit map to show entire route
-      const group = new L.FeatureGroup([
-        startMarkerRef.current,
-        endMarkerRef.current,
-        routeLayer,
-      ]);
-      mapInstanceRef.current.fitBounds(group.getBounds(), { padding: [20, 20] });
-    } catch (error) {
-      console.error("Route finding error:", error);
-    } finally {
-      if (showRefreshAnimation) {
-        setIsRefreshing(false);
-      }
-    }
+    }, 0); // Immediate execution but non-blocking
   };
 
   // Handle refresh button click
@@ -191,13 +190,18 @@ const RouteMapView = ({
     mapInstanceRef.current = map;
 
     // Cleanup function
-    return () => { // eslint-disable-line consistent-return
+    return () => {
       if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
-        startMarkerRef.current = null;
-        endMarkerRef.current = null;
-        routeLayerRef.current = null;
+        try {
+          mapInstanceRef.current.remove();
+        } catch (error) {
+          console.warn("Error removing map instance:", error);
+        } finally {
+          mapInstanceRef.current = null;
+          startMarkerRef.current = null;
+          endMarkerRef.current = null;
+          routeLayerRef.current = null;
+        }
       }
     };
   }, []);

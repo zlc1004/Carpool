@@ -30,3 +30,6 @@ codepush_storage/
 codepush_tmp/
 codepush_mysql_data/
 codepush_redis_data/
+
+config/settings.development.json
+settings.json

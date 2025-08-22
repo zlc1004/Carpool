@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import PropTypes from "prop-types";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -36,8 +36,9 @@ L.Icon.Default.mergeOptions({
 /**
  * Interactive map picker component that allows users to click on a map to select coordinates
  * Uses AsyncTileLayer with the tileserver proxy for non-blocking tile loading
+ * Optimized with React.memo and useMemo for better performance
  */
-const InteractiveMapPicker = ({
+const InteractiveMapPicker = React.memo(({
   initialLat = 49.345196,
   initialLng = -123.149805,
   onLocationSelect,
@@ -50,17 +51,38 @@ const InteractiveMapPicker = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [currentLocation, setCurrentLocation] = useState({
-    lat: selectedLocation?.lat || initialLat,
-    lng: selectedLocation?.lng || initialLng,
-  });
+  const [currentLocation, setCurrentLocation] = useState(initialCoordinates);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+
+  // Memoize initial coordinates to prevent unnecessary recalculations
+  const initialCoordinates = useMemo(() => ({
+    lat: selectedLocation?.lat || initialLat,
+    lng: selectedLocation?.lng || initialLng,
+  }), [selectedLocation, initialLat, initialLng]);
+
+  // Memoize tile URL to prevent recreation on every render
+  const tileUrl = useMemo(() =>
+    "https://tileserver.carp.school/styles/OSM%20OpenMapTiles/{z}/{x}/{y}.png",
+    []
+  );
+
+  // Memoize location select callback to prevent unnecessary re-renders
+  const handleLocationSelect = useCallback((location) => {
+    if (onLocationSelect) {
+      onLocationSelect(location);
+    }
+  }, [onLocationSelect]);
 
   // Clear messages
   const clearMessages = () => {
     setErrorMessage("");
     setSuccessMessage("");
+    // Clear any pending success message timeout
+    if (showSuccess.currentTimeout) {
+      clearTimeout(showSuccess.currentTimeout);
+      showSuccess.currentTimeout = null;
+    }
   };
 
   // Show error message
@@ -74,9 +96,12 @@ const InteractiveMapPicker = ({
     setSuccessMessage(message);
     setErrorMessage("");
     // Auto-dismiss success messages after 5 seconds
-    setTimeout(() => {
+    const dismissTimeout = setTimeout(() => {
       setSuccessMessage("");
     }, 5000);
+
+    // Store the timeout reference for potential cleanup
+    showSuccess.currentTimeout = dismissTimeout;
   };
 
   useEffect(() => {
@@ -90,7 +115,6 @@ const InteractiveMapPicker = ({
     });
 
     // Add async tile layer using our tileserver for better performance
-    const tileUrl = "https://tileserver.carp.school/styles/OSM%20OpenMapTiles/{z}/{x}/{y}.png";
     const asyncTileLayer = new AsyncTileLayer(tileUrl, {
       attribution: "© OpenStreetMap contributors",
       maxZoom: 18,
@@ -111,9 +135,7 @@ const InteractiveMapPicker = ({
         lng: parseFloat(position.lng.toFixed(6)),
       };
       setCurrentLocation(newLocation);
-      if (onLocationSelect) {
-        onLocationSelect(newLocation);
-      }
+      handleLocationSelect(newLocation);
     });
 
     // Handle map clicks
@@ -124,9 +146,7 @@ const InteractiveMapPicker = ({
       };
       marker.setLatLng([newLocation.lat, newLocation.lng]);
       setCurrentLocation(newLocation);
-      if (onLocationSelect) {
-        onLocationSelect(newLocation);
-      }
+      handleLocationSelect(newLocation);
     });
 
     mapInstanceRef.current = map;
@@ -151,6 +171,12 @@ const InteractiveMapPicker = ({
           mapInstanceRef.current = null;
           markerRef.current = null;
         }
+      }
+
+      // Clear any pending success message timeout
+      if (showSuccess.currentTimeout) {
+        clearTimeout(showSuccess.currentTimeout);
+        showSuccess.currentTimeout = null;
       }
     };
   }, []);
@@ -184,20 +210,21 @@ const InteractiveMapPicker = ({
         };
 
         if (mapInstanceRef.current && markerRef.current) {
-          mapInstanceRef.current.setView([newLocation.lat, newLocation.lng], 10); // Lower zoom for IP location
-          markerRef.current.setLatLng([newLocation.lat, newLocation.lng]);
-          setCurrentLocation(newLocation);
-          if (onLocationSelect) {
-            onLocationSelect(newLocation);
-          }
+            mapInstanceRef.current.setView([newLocation.lat, newLocation.lng], 10); // Lower zoom for IP location
+            markerRef.current.setLatLng([newLocation.lat, newLocation.lng]);
+            setCurrentLocation(newLocation);
+            handleLocationSelect(newLocation);
 
           // Show success message
-          setTimeout(() => {
+          const successTimeout = setTimeout(() => {
             showSuccess(
               `Located you in ${data.city || "your area"} using network location. ` +
               "This is less precise than GPS - you may want to refine the marker position manually.",
             );
           }, 500);
+
+          // Store timeout for potential cleanup
+          return () => clearTimeout(successTimeout);
         }
       }
     } catch (ipError) {
@@ -246,9 +273,7 @@ const InteractiveMapPicker = ({
             );
             markerRef.current.setLatLng([newLocation.lat, newLocation.lng]);
             setCurrentLocation(newLocation);
-            if (onLocationSelect) {
-              onLocationSelect(newLocation);
-            }
+            handleLocationSelect(newLocation);
           }
         } catch (error) {
           console.warn("Error setting location:", error);
@@ -304,42 +329,45 @@ const InteractiveMapPicker = ({
     );
   };
 
-  // Search for locations using local Nominatim proxy
-  const searchLocation = async () => {
-    if (!searchQuery.trim()) return;
+  // Search for locations using optimized map service (non-blocking)
+  const searchLocation = () => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
 
+    // Immediately show loading state (non-blocking UI update)
     setIsSearching(true);
     setSearchResults([]);
+    clearMessages();
 
-    try {
-      // Use Nominatim service
-      const response = await fetch(
-        `https://nominatim.carp.school/search?q=${encodeURIComponent(
-          searchQuery,
-        )}&format=json&limit=5&addressdetails=1&countrycodes=ca`,
-      );
+    // Use setTimeout to ensure UI updates immediately before starting async work
+    setTimeout(async () => {
+      try {
+        // Use optimized map service with debouncing and caching
+        const { searchLocation: optimizedSearch } = await import("../../utils/mapServices");
+        const results = await optimizedSearch(searchQuery, {
+          limit: 5,
+          countrycodes: 'ca',
+          addressdetails: 1,
+        });
 
-      if (!response.ok) {
-        throw new Error(`Nominatim search returned ${response.status}`);
+        // Only update if search query hasn't changed (user is still on same search)
+        if (searchQuery.trim()) {
+          setSearchResults(results);
+        }
+      } catch (error) {
+        console.error("Search error:", error);
+        if (error.message.includes('timeout')) {
+          showError("Search timed out. Please try again.");
+        } else {
+          showError("Search failed. Please try again.");
+        }
+      } finally {
+        setIsSearching(false);
       }
-
-      const results = await response.json();
-
-      // Nominatim response format
-      const formattedResults = results.map((result) => ({
-        id: result.place_id,
-        display_name: result.display_name,
-        lat: parseFloat(result.lat),
-        lng: parseFloat(result.lon),
-      }));
-
-      setSearchResults(formattedResults);
-    } catch (error) {
-      console.error("Nominatim search error:", error);
-      showError("Search failed. Please try again.");
-    } finally {
-      setIsSearching(false);
-    }
+    }, 0); // Immediate execution but non-blocking
   };
 
   // Handle search result selection
@@ -354,9 +382,7 @@ const InteractiveMapPicker = ({
         mapInstanceRef.current.setView([result.lat, result.lng], 15);
         markerRef.current.setLatLng([result.lat, result.lng]);
         setCurrentLocation(newLocation);
-        if (onLocationSelect) {
-          onLocationSelect(newLocation);
-        }
+        handleLocationSelect(newLocation);
       } catch (error) {
         console.warn("Error selecting search result:", error);
       }
@@ -397,7 +423,11 @@ const InteractiveMapPicker = ({
           type="text"
           placeholder="Search for a location..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            // Trigger optimized search automatically as user types
+            searchLocation();
+          }}
           onKeyPress={(e) => e.key === "Enter" && searchLocation()}
         />
         <SearchButton onClick={searchLocation} disabled={isSearching}>
@@ -450,7 +480,17 @@ const InteractiveMapPicker = ({
       </HelpText>
     </MapContainer>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison for better memoization performance
+  return (
+    prevProps.initialLat === nextProps.initialLat &&
+    prevProps.initialLng === nextProps.initialLng &&
+    prevProps.height === nextProps.height &&
+    prevProps.selectedLocation?.lat === nextProps.selectedLocation?.lat &&
+    prevProps.selectedLocation?.lng === nextProps.selectedLocation?.lng &&
+    prevProps.onLocationSelect === nextProps.onLocationSelect
+  );
+});
 
 InteractiveMapPicker.propTypes = {
   initialLat: PropTypes.number,

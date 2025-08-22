@@ -2,7 +2,7 @@ import React from "react";
 import PropTypes from "prop-types";
 import "semantic-ui-css/semantic.css";
 import {
-  HashRouter as Router,
+  BrowserRouter as Router,
   Route,
   Switch,
   Redirect,
@@ -33,6 +33,7 @@ import MobileCredits from "../mobile/pages/Credits";
 import MobilePlaceManager from "../mobile/pages/PlaceManager";
 import MobileAdminPlaceManager from "../pages/AdminPlaceManager";
 import MobileRideInfo from "../mobile/pages/RideInfo";
+import RideHistory from "../mobile/pages/RideHistory";
 import ProtectedRoutes, {
   ProtectedRoute,
   ProtectedRouteRequireNotLoggedIn,
@@ -56,6 +57,10 @@ import IOSProfile from "../mobile/pages/Profile";
 import AdminErrorReports from "../desktop/pages/AdminErrorReports";
 import AdminErrorReportDetail from "../desktop/pages/AdminErrorReportDetail";
 import CrashApp from "../test/pages/CrashApp";
+import NotificationTest from "../test/pages/NotificationTest";
+import MobilePushTest from "../test/pages/MobilePushTest";
+import AutoSubscribeNotification from "../components/AutoSubscribeNotification";
+import PWAInstallPrompt from "../mobile/components/PWAInstallPrompt";
 // Lazy load MapComponentsTest to improve initial load performance
 const MapComponentsTest = React.lazy(() => import("/imports/ui/test/pages/MapComponentsTest.jsx"));
 
@@ -66,6 +71,10 @@ class App extends React.Component {
       <Router>
         <ErrorBoundary>
           <AppContainer>
+          {/* Auto-subscribe to notifications on every page visit */}
+          <AutoSubscribeNotification />
+          {/* PWA install prompt */}
+          <PWAInstallPrompt />
           <DesktopOnly>
             <NavBar />
           </DesktopOnly>
@@ -74,7 +83,7 @@ class App extends React.Component {
               <ProtectedRouteRequireNotLoggedIn exact path="/" component={MobileLanding} />
               <Route exact path="/404" component={MobileNotFound} />
               <ProtectedRouteRequireNotLoggedIn
-                path="/signin"
+                path="/login"
                 component={MobileSignIn}
               />
               <ProtectedRouteRequireNotLoggedIn
@@ -94,10 +103,11 @@ class App extends React.Component {
               <ProtectedRoute path="/onboarding" component={MobileOnboarding} />
 
               {/* Main app routes with full onboarding flow */}
-              <ProtectedRoutes path="/myRides" component={MobileMyRides} />
+              <ProtectedRoutes path="/my-rides" component={MobileMyRides} />
               <ProtectedRoutes path="/ride/:rideId" component={MobileRideInfo} />
+              <ProtectedRoutes path="/ride-history/:id" component={RideHistory} />
               <ProtectedRoutes
-                path="/editProfile"
+                path="/edit-profile"
                 component={MobileEditProfile}
               />
               <ProtectedRoutes path="/chat" component={MobileChat} />
@@ -184,6 +194,14 @@ class App extends React.Component {
                 component={CrashApp}
               />
               <ProtectedRouteRequireAdmin
+                path="/_test/notifications"
+                component={NotificationTest}
+              />
+              <ProtectedRouteRequireAdmin
+                path="/_test/mobile-push"
+                component={MobilePushTest}
+              />
+              <ProtectedRouteRequireAdmin
                 exact
                 path="/_test"
                 component={ComponentsTest}
@@ -191,7 +209,7 @@ class App extends React.Component {
               <ProtectedRoute path="/signout" component={MobileSignout} />
 
               {/* Public pages */}
-              <Route exact path="/tos" component={MobileTOS} />
+              <Route exact path="/terms" component={MobileTOS} />
               <Route exact path="/privacy" component={MobilePrivacy} />
               <Route exact path="/credits" component={MobileCredits} />
 
