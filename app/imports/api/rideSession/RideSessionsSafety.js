@@ -18,7 +18,7 @@ export const canCreateRideSession = async (userId, rideId, driverId, riders = []
   // Check if user is the driver or an admin
   const user = await Meteor.users.findOneAsync(userId);
   const isAdmin = user?.roles?.includes("admin");
-  const isDriver = ride.driver === user?.username || driverId === userId;
+  const isDriver = ride.driver === userId || driverId === userId;
 
   if (!isDriver && !isAdmin) {
     return { allowed: false, reason: "Only the driver or admin can create a ride session" };
@@ -30,17 +30,8 @@ export const canCreateRideSession = async (userId, rideId, driverId, riders = []
     return { allowed: false, reason: "A session already exists for this ride" };
   }
 
-    // Convert rider usernames to user IDs for validation
-    const riderUserIds = [];
-    for (const username of ride.riders) {
-      const user = await Meteor.users.findOneAsync({ username });
-      if (user) {
-        riderUserIds.push(user._id);
-      }
-    }
-
-    // Validate riders are part of the original ride
-    const invalidRiders = riders.filter(riderId => !riderUserIds.includes(riderId));
+    // Validate riders are part of the original ride (ride.riders now contains user IDs)
+    const invalidRiders = riders.filter(riderId => !ride.riders.includes(riderId));
     if (invalidRiders.length > 0) {
       return { allowed: false, reason: "Some riders are not part of the original ride" };
     }

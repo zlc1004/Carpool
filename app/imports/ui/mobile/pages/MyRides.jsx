@@ -110,7 +110,7 @@ class MobileMyRides extends React.Component {
 
     const { rides, rideSessions } = this.props;
     const { searchQuery } = this.state;
-    const currentUser = Meteor.user()?.username;
+    const currentUser = Meteor.user()?._id;
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
@@ -179,14 +179,7 @@ class MobileMyRides extends React.Component {
 
       const filterBySearch = (rideList) => rideList.filter(
         (ride) => ride.origin.toLowerCase().includes(query) ||
-          ride.destination.toLowerCase().includes(query) ||
-          (ride.riders &&
-            ride.riders.length > 0 &&
-            ride.riders.some((rider) => rider.toLowerCase().includes(query))) ||
-          (ride.rider &&
-            ride.rider !== "TBD" &&
-            ride.rider.toLowerCase().includes(query)) ||
-          ride.driver.toLowerCase().includes(query),
+          ride.destination.toLowerCase().includes(query),
       );
 
       // Apply search filter to all categories

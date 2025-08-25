@@ -1,3 +1,16 @@
+// Email configuration
+import { Meteor } from "meteor/meteor";
+
+// Configure SMTP for iCloud+ custom domain
+if (Meteor.isServer) {
+  Meteor.startup(() => {
+    // Email configuration check
+    if (!process.env.MAIL_URL) {
+      console.warn("⚠️  MAIL_URL not set - email functionality will not work");
+    }
+  });
+}
+
 // First run setup
 import "../imports/startup/server/FirstRun";
 
@@ -13,6 +26,8 @@ import "../imports/api/places/PlacesPublications";
 import "../imports/api/rateLimit/RateLimitPublications";
 import "../imports/api/errorReport/ErrorReportPublications";
 import "../imports/api/notifications/NotificationPublications";
+import "../imports/api/system/SystemPublications";
+import "../imports/api/schools/SchoolsPublications";
 
 // Routes
 import "../imports/startup/server/ServerRoutes";
@@ -29,9 +44,13 @@ import "../imports/api/rateLimit/RateLimitMethods";
 import "../imports/api/errorReport/ErrorReportMethods";
 import "../imports/api/notifications/NotificationMethods";
 import "../imports/api/notifications/OneSignalMethods";
+import "../imports/api/system/SystemMethods";
+import "../imports/api/schools/SchoolsMethods";
+import "../imports/api/accounts/AdminMethods";
 
 // Accounts
-import "../imports/api/accounts/AccountsHandlers";
+import "../imports/api/accounts/AccountsHandlers"; // Login validation and logout handlers
+import "../imports/api/accounts/AccountsSchoolHandlers"; // User creation with school assignment
 import "../imports/api/accounts/AccountsConfig";
 
 // Push Notifications

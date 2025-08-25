@@ -51,6 +51,9 @@ Accounts.validateNewUser(async (user) => {
   return true;
 });
 
+// NOTE: onCreateUser moved to AccountsSchoolHandlers.js to include school assignment
+// This avoids "Can only call onCreateUser once" error
+
 // Handle user logout - deactivate push tokens for privacy
 Accounts.onLogout((loginHandle) => {
   if (loginHandle.userId) {

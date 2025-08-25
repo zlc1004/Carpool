@@ -11,6 +11,7 @@ import { Meteor } from "meteor/meteor";
 import { withTracker } from "meteor/react-meteor-data";
 import MobileAdminRides from "../pages/AdminRides";
 import MobileAdminUsers from "../pages/AdminUsers";
+import AdminSchools from "../pages/AdminSchools";
 import MobileTestImageUpload from "../mobile/pages/TestImageUpload";
 import LoadingPage from "../components/LoadingPage";
 import ErrorBoundary from "../components/ErrorBoundary";
@@ -32,6 +33,7 @@ import MobilePrivacy from "../mobile/pages/Privacy";
 import MobileCredits from "../mobile/pages/Credits";
 import MobilePlaceManager from "../mobile/pages/PlaceManager";
 import MobileAdminPlaceManager from "../pages/AdminPlaceManager";
+import SystemAdmin from "../pages/System";
 import MobileRideInfo from "../mobile/pages/RideInfo";
 import RideHistory from "../mobile/pages/RideHistory";
 import ProtectedRoutes, {
@@ -39,6 +41,7 @@ import ProtectedRoutes, {
   ProtectedRouteRequireNotLoggedIn,
   ProtectedRouteRequireAdmin,
   ProtectedRouteRequireNotEmailVerified,
+  ProtectedRouteRequireSystem,
 } from "./ProtectedRoutes";
 import { DesktopOnly, MobileOnly } from "./Devices";
 import { AppContainer, MainContent } from "../styles/App";
@@ -133,6 +136,10 @@ class App extends React.Component {
                 path="/admin/places"
                 component={MobileAdminPlaceManager}
               />
+              <ProtectedRouteRequireSystem
+                path="/admin/schools"
+                component={AdminSchools}
+              />
               <ProtectedRouteRequireAdmin
                 exact
                 path="/admin/error-reports"
@@ -141,6 +148,11 @@ class App extends React.Component {
               <ProtectedRouteRequireAdmin
                 path="/admin/error-report/:id"
                 component={AdminErrorReportDetail}
+              />
+              <ProtectedRouteRequireSystem
+                exact
+                path="/system"
+                component={SystemAdmin}
               />
 
               {/* Redirect /admin to 404 */}
