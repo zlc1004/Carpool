@@ -1,6 +1,6 @@
 # Data directories (similar to main branch)
 storage/
-db/
+db/data/
 
 # Backup files
 backups/
@@ -59,3 +59,5 @@ dist/
 
 volumes
 dev
+
+monitoring/

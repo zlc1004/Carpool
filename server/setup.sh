@@ -62,9 +62,16 @@ log_success "Prerequisites check completed"
 log_info "Setting up directories..."
 
 mkdir -p db
-makir -p storage
+mkdir -p storage
+mkdir -p ssl
+mkdir -p monitoring/prometheus
+mkdir -p pooler
 
-log_success "Directories created"
+# Create SQL files that Docker expects
+log_info "Creating database initialization files..."
+
+
+log_success "Directories and SQL files created"
 
 # Setup environment file
 if [ ! -f .env ]; then
@@ -89,86 +96,6 @@ else
     log_info "Environment file already exists"
 fi
 
-# Setup Git hooks (if in Git repository)
-if [ -d .git ]; then
-    log_info "Setting up Git hooks..."
-
-    cat > .git/hooks/pre-commit << 'EOF'
-#!/bin/bash
-# Pre-commit hook for CarpSchool Supabase Server
-
-echo "Running pre-commit checks..."
-
-# Check if .env has default values that should be changed
-if grep -q "change_in_production" .env; then
-    echo "⚠️  Warning: .env contains default values that should be changed for production"
-fi
-
-# Check for common security issues
-if grep -r "password.*=" . --exclude-dir=.git --exclude="*.example" | grep -v "POSTGRES_PASSWORD"; then
-    echo "⚠️  Warning: Found potential hardcoded passwords"
-fi
-
-echo "✅ Pre-commit checks completed"
-EOF
-
-    chmod +x .git/hooks/pre-commit
-    log_success "Git hooks installed"
-fi
-
-# Create development certificates (for HTTPS)
-if [ ! -f ssl/server.crt ]; then
-    log_info "Creating development SSL certificates..."
-
-    openssl req -x509 -newkey rsa:2048 -keyout ssl/server.key -out ssl/server.crt \
-        -days 365 -nodes -subj "/C=US/ST=CA/L=SF/O=CarpSchool/CN=localhost" &> /dev/null
-
-    log_success "SSL certificates created"
-else
-    log_info "SSL certificates already exist"
-fi
-
-# Setup monitoring configuration
-if [ ! -f monitoring/prometheus/prometheus.yml ]; then
-    log_info "Setting up monitoring configuration..."
-
-    cat > monitoring/prometheus/prometheus.yml << 'EOF'
-global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
-
-rule_files:
-  # - "first_rules.yml"
-  # - "second_rules.yml"
-
-scrape_configs:
-  - job_name: 'prometheus'
-    static_configs:
-      - targets: ['localhost:9090']
-
-  - job_name: 'postgres'
-    static_configs:
-      - targets: ['supabase-db:5432']
-
-  - job_name: 'redis'
-    static_configs:
-      - targets: ['redis:6379']
-
-  - job_name: 'kong'
-    static_configs:
-      - targets: ['kong:8001']
-EOF
-
-    log_success "Monitoring configuration created"
-fi
-
-# Install Node.js dependencies (if package.json exists and node is available)
-if [ -f package.json ] && command -v npm &> /dev/null; then
-    log_info "Installing Node.js dependencies..."
-    npm install
-    log_success "Node.js dependencies installed"
-fi
-
 # Make scripts executable
 log_info "Setting script permissions..."
 chmod +x *.sh
@@ -189,7 +116,7 @@ log_success "Configuration validation passed"
 echo ""
 echo "✅ Setup completed successfully!"
 echo ""
-echo "🚀 Next Steps:"
+echo "�� Next Steps:"
 echo "1. Review configuration:     nano .env"
 echo "2. Start development server: make dev"
 echo "3. Or use the startup script: ./start-dev.sh"
