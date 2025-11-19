@@ -82,7 +82,7 @@ fi
 
 if [ -f "supabase/migrations/02_rls_policies.sql" ]; then
     docker compose exec -T supabase-db psql -U supabase_admin -d postgres < supabase/migrations/02_rls_policies.sql
-    echo "��� RLS policies applied"
+    echo "✅ RLS policies applied"
 fi
 
 if [ -f "supabase/migrations/03_seed_data.sql" ]; then
@@ -101,21 +101,13 @@ wait_for_service "supabase-auth" 8
 echo "🎨 Starting Supabase Studio..."
 docker compose up -d supabase-studio
 
-# Start map services (if data exists) - now in consolidated services
+# Note: Map services are managed separately
 if [ -d "openmaptilesdata/data" ] && [ "$(ls -A openmaptilesdata/data)" ]; then
-    echo "🗺️  Starting map services from ../services..."
-
-    # Create external network if it doesn't exist
-    docker network create carpool_network 2>/dev/null || true
-
-    # Start all map services from consolidated compose file
-    (cd ../services && docker compose up -d)
-
-    echo "   ✅ All map services started (tileserver-gl, nominatim, osrm)"
+    echo "📍 Map data found. To use map services, start them separately:"
+    echo "   cd ../services && docker compose up -d"
 else
-    echo "⚠️  Map data not found. Skipping external map services."
-    echo "   To add map services, please provide map data in openmaptilesdata/ and osrmdata/ directories."
-    echo "   Then start services manually: cd ../services && docker compose up -d"
+    echo "📍 Map data not found in openmaptilesdata/ and osrmdata/ directories."
+    echo "   Map services are managed separately and can be started independently."
 fi
 
 
@@ -137,13 +129,12 @@ echo "   📧 Inbucket (Email):    http://localhost:9000"
 echo "   📊 Database (direct):   localhost:5432"
 echo ""
 
-if [ -d "openmaptilesdata/data" ] && [ "$(ls -A openmaptilesdata/data)" ]; then
-    echo "🗺️  Map Services (if proxy enabled):"
-    echo "   📍 Nominatim:          http://localhost:40060"
-    echo "   🗺️  Tileserver:         http://localhost:40061"
-    echo "   🛣️  OSRM:              http://localhost:40062"
-    echo ""
-fi
+echo "🗺️  Map Services (managed separately):"
+echo "   Start services:        cd ../services && docker compose up -d"
+echo "   📍 Nominatim:          http://localhost:40060 (if proxy enabled)"
+echo "   🗺️  Tileserver:         http://localhost:40061 (if proxy enabled)"
+echo "   🛣��  OSRM:              http://localhost:40062 (if proxy enabled)"
+echo ""
 
 
 
