@@ -73,7 +73,15 @@ if ! wait_for_service "supabase-db" 12; then
     exit 1
 fi
 
-# Apply database migrations
+# Start auth service to create auth schema
+echo "🔧 Starting auth service..."
+docker compose up -d supabase-auth
+
+# Wait for auth service to initialize
+echo "⏳ Waiting for auth service to initialize..."
+wait_for_service "supabase-auth" 8
+
+# Apply database migrations (after auth schema is created)
 echo "📊 Applying database migrations..."
 if [ -f "supabase/migrations/01_initial_schema.sql" ]; then
     docker compose exec -T supabase-db psql -U supabase_admin -d postgres < supabase/migrations/01_initial_schema.sql
@@ -92,10 +100,7 @@ fi
 
 # Start remaining Supabase services
 echo "🔧 Starting remaining Supabase services..."
-docker compose up -d supabase-auth supabase-rest supabase-realtime supabase-storage supabase-imgproxy supabase-meta supabase-functions supabase-inbucket kong
-
-# Wait for auth service
-wait_for_service "supabase-auth" 8
+docker compose up -d supabase-rest supabase-realtime supabase-storage supabase-imgproxy supabase-meta supabase-functions supabase-inbucket kong
 
 # Start Supabase Studio
 echo "🎨 Starting Supabase Studio..."
