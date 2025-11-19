@@ -1,5 +1,6 @@
 # Data directories (similar to main branch)
 postgres_data/
+postgres_init/
 storage_data/
 functions_cache/
 redis_data/
