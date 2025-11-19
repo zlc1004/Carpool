@@ -1,0 +1,29 @@
+{
+  "name": "carpool-server",
+  "version": "1.0.0",
+  "description": "Supabase server for CarpSchool app",
+  "scripts": {
+    "dev": "supabase start",
+    "stop": "supabase stop",
+    "status": "supabase status",
+    "reset": "supabase db reset",
+    "generate-types": "supabase gen types typescript --local > types/database.ts",
+    "migrate": "supabase db push",
+    "functions:serve": "supabase functions serve",
+    "functions:deploy": "supabase functions deploy"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.38.5",
+    "joi": "^17.11.0",
+    "uuid": "^9.0.1",
+    "sharp": "^0.32.6",
+    "canvas": "^2.11.2",
+    "svg-captcha": "^1.4.0",
+    "firebase-admin": "^11.11.1",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "typescript": "^5.3.3"
+  }
+}
