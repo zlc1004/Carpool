@@ -17,23 +17,23 @@ acls:
 
 services:
   - name: auth-v1-open
-    url: http://supabase-auth:9999/verify
+    url: http://auth:9999/verify
     plugins:
       - name: cors
 
   - name: auth-v1-open-callback
-    url: http://supabase-auth:9999/callback
+    url: http://auth:9999/callback
     plugins:
       - name: cors
 
   - name: auth-v1-open-authorize
-    url: http://supabase-auth:9999/authorize
+    url: http://auth:9999/authorize
     plugins:
       - name: cors
 
   - name: auth-v1
-    _comment: "GoTrue: /auth/v1/* -> http://supabase-auth:9999/*"
-    url: http://supabase-auth:9999/
+    _comment: "GoTrue: /auth/v1/ -> http://auth:9999/"
+    url: http://auth:9999/
     plugins:
       - name: cors
       - name: key-auth
@@ -47,8 +47,8 @@ services:
             - service_role
 
   - name: rest-v1
-    _comment: "PostgREST: /rest/v1/* -> http://supabase-rest:3000/*"
-    url: http://supabase-rest:3000/
+    _comment: "PostgREST: /rest/v1/ -> http://rest:3000/"
+    url: http://rest:3000/
     plugins:
       - name: cors
       - name: key-auth
@@ -62,8 +62,8 @@ services:
             - service_role
 
   - name: realtime-v1
-    _comment: "Realtime: /realtime/v1/* -> ws://supabase-realtime:4000/socket/*"
-    url: http://supabase-realtime:4000/socket/
+    _comment: "Realtime: /realtime/v1/ -> ws://realtime:4000/socket/"
+    url: http://realtime:4000/socket/
     plugins:
       - name: cors
       - name: key-auth
@@ -77,20 +77,20 @@ services:
             - service_role
 
   - name: storage-v1
-    _comment: "Storage: /storage/v1/* -> http://supabase-storage:5000/*"
-    url: http://supabase-storage:5000/
+    _comment: "Storage: /storage/v1/ -> http://storage:5000/"
+    url: http://storage:5000/
     plugins:
       - name: cors
 
   - name: functions-v1
-    _comment: "Edge Functions: /functions/v1/* -> http://supabase-functions:9000/*"
-    url: http://supabase-functions:9000/
+    _comment: "Edge Functions: /functions/v1/ -> http://functions:9000/"
+    url: http://functions:9000/
     plugins:
       - name: cors
 
   - name: analytics-v1
-    _comment: "Analytics: /analytics/v1/* -> http://supabase-analytics:4000/*"
-    url: http://supabase-analytics:4000/
+    _comment: "Analytics: /analytics/v1/ -> http://analytics:4000/"
+    url: http://analytics:4000/
     plugins:
       - name: cors
       - name: key-auth
@@ -103,8 +103,8 @@ services:
             - service_role
 
   - name: meta
-    _comment: "pg-meta: /pg/* -> http://supabase-meta:8080/*"
-    url: http://supabase-meta:8080/
+    _comment: "pg-meta: /pg/ -> http://meta:8080/"
+    url: http://meta:8080/
     plugins:
       - name: key-auth
         config:
