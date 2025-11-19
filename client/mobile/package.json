@@ -1,0 +1,59 @@
+{
+  "name": "carpool-mobile",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "build:android": "expo build:android",
+    "build:ios": "expo build:ios",
+    "eject": "expo eject",
+    "test": "jest",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "clear": "expo start --clear"
+  },
+  "dependencies": {
+    "expo": "~54.0.25",
+    "expo-status-bar": "~3.0.8",
+    "expo-constants": "~17.0.0",
+    "expo-device": "~7.0.0",
+    "expo-image": "~1.14.0",
+    "expo-image-picker": "~16.0.0",
+    "expo-location": "~18.0.0",
+    "expo-haptics": "~14.0.0",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "@react-navigation/native": "^6.1.9",
+    "@react-navigation/stack": "^6.3.20",
+    "@react-navigation/bottom-tabs": "^6.5.11",
+    "react-native-screens": "~3.31.1",
+    "react-native-safe-area-context": "4.11.1",
+    "@supabase/supabase-js": "^2.38.4",
+    "react-native-url-polyfill": "^2.0.0",
+    "@react-native-async-storage/async-storage": "~1.24.0",
+    "react-native-maps": "1.19.0",
+    "@expo/vector-icons": "^14.0.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.0",
+    "typescript": "~5.9.2",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "eslint-plugin-react": "^7.0.0",
+    "eslint-plugin-react-hooks": "^4.0.0",
+    "jest": "^29.0.0"
+  },
+  "private": true,
+  "keywords": [
+    "react-native",
+    "expo",
+    "carpool",
+    "mobile",
+    "typescript"
+  ],
+  "description": "CarpSchool mobile app for safe student carpooling"
+}
