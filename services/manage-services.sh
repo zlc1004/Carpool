@@ -9,8 +9,13 @@ case "${1:-}" in
     start)
         echo "🚀 Starting all map services..."
 
-        # Create network if it doesn't exist
-        docker network create carpool_network 2>/dev/null || true
+        # Create network if it doesn't exist (independent operation)
+        if ! docker network ls --format "{{.Name}}" | grep -q "^carpool_network$"; then
+            echo "   Creating carpool_network..."
+            docker network create carpool_network
+        else
+            echo "   Using existing carpool_network..."
+        fi
 
         # Start all services from consolidated compose file
         docker compose up -d
@@ -30,7 +35,13 @@ case "${1:-}" in
         echo "🔄 Restarting all map services..."
 
         docker compose down
-        docker network create carpool_network 2>/dev/null || true
+
+        # Ensure network exists (independent operation)
+        if ! docker network ls --format "{{.Name}}" | grep -q "^carpool_network$"; then
+            echo "   Creating carpool_network..."
+            docker network create carpool_network
+        fi
+
         docker compose up -d
 
         echo "✅ All map services restarted"
