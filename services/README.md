@@ -1,6 +1,6 @@
 # External Map Services
 
-This directory contains the map and geocoding services that support the CarpSchool application. These services are separated from the main Supabase server for better modularity and scalability.
+This directory contains the map and geocoding services that support the CarpSchool application. These services are **completely independent** from the main Supabase server and must be started separately.
 
 All services are defined in a single `docker-compose.yml` file for simplified management.
 
@@ -24,16 +24,17 @@ All services are defined in a single `docker-compose.yml` file for simplified ma
 ## Usage
 
 ### Starting All Map Services
-From the server directory:
-```bash
-./start-dev.sh
-```
+**Note**: Map services must be started independently from the server.
 
-Or directly from the services directory:
+From the services directory:
 ```bash
 cd services
 docker compose up -d
 ```
+
+### Prerequisites
+1. Ensure the main server is running to create the `carpool_network`
+2. Ensure map data is available in `../server/openmaptilesdata/` and `../server/osrmdata/`
 
 ### Using the Management Script
 ```bash
