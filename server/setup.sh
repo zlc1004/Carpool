@@ -79,9 +79,12 @@ if [ ! -f .env ]; then
     cp .env.example .env
 
     # Generate secure passwords and secrets
-    DB_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-32)
-    JWT_SECRET=$(openssl rand -base64 64 | tr -d "=+/" | cut -c1-64)
-    LOGFLARE_KEY=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-32)
+    DB_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/
+" | cut -c1-32)
+    JWT_SECRET=$(openssl rand -base64 64 | tr -d "=+/
+" | cut -c1-64)
+    LOGFLARE_KEY=$(openssl rand -base64 32 | tr -d "=+/
+" | cut -c1-32)
 
     # Update .env with generated secrets
     sed -i.bak "s/carpool_db_password_change_in_production/$DB_PASSWORD/" .env
