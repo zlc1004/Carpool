@@ -344,7 +344,9 @@ services:
       VERIFY_JWT: "${FUNCTIONS_VERIFY_JWT}"
     command:
       [
-        "start"
+        "start",
+        "--main-service",
+        "/home/deno/functions/main"
       ]
 
   analytics:
