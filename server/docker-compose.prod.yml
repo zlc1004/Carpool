@@ -1,0 +1,155 @@
+# Production Docker Compose Override
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  supabase-db:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Production database tuning
+      POSTGRES_SHARED_PRELOAD_LIBRARIES: pg_stat_statements,pg_hint_plan,timescaledb
+      POSTGRES_MAX_CONNECTIONS: 200
+      POSTGRES_SHARED_BUFFERS: 256MB
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 1GB
+      POSTGRES_WORK_MEM: 4MB
+      POSTGRES_MAINTENANCE_WORK_MEM: 64MB
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    restart: always
+    command: >
+      postgres
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c work_mem=4MB
+      -c maintenance_work_mem=64MB
+      -c random_page_cost=1.1
+      -c temp_file_limit=2GB
+      -c log_min_duration_statement=1000
+      -c log_connections=on
+      -c log_disconnections=on
+      -c log_lock_waits=on
+      -c log_statement=ddl
+      -c log_checkpoints=on
+      -c log_line_prefix='%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h '
+
+  supabase-auth:
+    environment:
+      GOTRUE_SITE_URL: ${SITE_URL}
+      GOTRUE_SMTP_HOST: ${SMTP_HOST}
+      GOTRUE_SMTP_PORT: ${SMTP_PORT}
+      GOTRUE_SMTP_USER: ${SMTP_USER}
+      GOTRUE_SMTP_PASS: ${SMTP_PASS}
+      GOTRUE_MAILER_AUTOCONFIRM: false
+      GOTRUE_EMAIL_ENABLE_CONFIRMATIONS: true
+    restart: always
+
+  supabase-rest:
+    environment:
+      PGRST_DB_POOL: 50
+      PGRST_DB_POOL_TIMEOUT: 10
+      PGRST_DB_MAX_ROWS: 1000
+      PGRST_SERVER_TIMING_ENABLED: false
+    restart: always
+
+  supabase-realtime:
+    environment:
+      MAX_CONNECTIONS: 1000
+      DB_POOL_SIZE: 50
+    restart: always
+
+  supabase-storage:
+    environment:
+      FILE_SIZE_LIMIT: 104857600  # 100MB
+      STORAGE_BACKEND: s3
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+    restart: always
+
+  supabase-functions:
+    environment:
+      FUNCTIONS_VERIFY_JWT: true
+      DENO_REGION: ${DENO_REGION:-us-east-1}
+    restart: always
+
+  kong:
+    environment:
+      KONG_LOG_LEVEL: warn
+      KONG_ACCESS_LOG: /dev/stdout
+      KONG_ERROR_LOG: /dev/stderr
+      KONG_NGINX_WORKER_PROCESSES: auto
+    restart: always
+
+  # Production monitoring
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    restart: always
+    networks:
+      - carpool_network
+    profiles: ["monitoring"]
+
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: grafana
+    ports:
+      - "3002:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin123}
+      GF_USERS_ALLOW_SIGN_UP: false
+    volumes:
+      - ./grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    restart: always
+    networks:
+      - carpool_network
+    profiles: ["monitoring"]
+
+  # Redis for caching and sessions
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis_data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    restart: always
+    networks:
+      - carpool_network
+    profiles: ["cache"]
+
+  # Nginx reverse proxy for production
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - /var/log/nginx:/var/log/nginx
+    depends_on:
+      - kong
+      - grafana
+    restart: always
+    networks:
+      - carpool_network
+    profiles: ["proxy"]
