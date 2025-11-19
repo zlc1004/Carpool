@@ -19,12 +19,6 @@ if [ ! -f .env ]; then
     echo "⚠️  Please review and update .env file with your configuration"
 fi
 
-# Create necessary directories
-echo "📁 Creating necessary directories..."
-mkdir -p postgres_data
-mkdir -p postgres_init
-mkdir -p storage_data
-mkdir -p functions_cache
 
 
 # Check if Kong configuration exists

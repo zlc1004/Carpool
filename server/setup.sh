@@ -61,18 +61,8 @@ log_success "Prerequisites check completed"
 # Setup directories
 log_info "Setting up directories..."
 
-mkdir -p postgres_data
-mkdir -p postgres_init
-mkdir -p storage_data
-mkdir -p functions_cache
-mkdir -p redis_data
-mkdir -p prometheus_data
-mkdir -p grafana_data
-mkdir -p backups
-mkdir -p logs
-mkdir -p monitoring/{prometheus,grafana/dashboards,grafana/datasources}
-mkdir -p nginx/{conf.d,ssl}
-mkdir -p ssl
+mkdir -p db
+makir -p storage
 
 log_success "Directories created"
 
