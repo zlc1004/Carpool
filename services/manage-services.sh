@@ -5,96 +5,63 @@
 
 set -e
 
-SERVICES=("nominatim" "tileserver-gl" "osrm")
-
 case "${1:-}" in
     start)
         echo "🚀 Starting all map services..."
-        
+
         # Create network if it doesn't exist
         docker network create carpool_network 2>/dev/null || true
-        
-        for service in "${SERVICES[@]}"; do
-            if [ -d "$service" ]; then
-                echo "   Starting $service..."
-                (cd "$service" && docker compose up -d)
-            else
-                echo "   ⚠️  $service directory not found"
-            fi
-        done
-        
-        echo "✅ All available map services started"
+
+        # Start all services from consolidated compose file
+        docker compose up -d
+
+        echo "✅ All map services started"
         ;;
-        
+
     stop)
         echo "🛑 Stopping all map services..."
-        
-        for service in "${SERVICES[@]}"; do
-            if [ -d "$service" ]; then
-                echo "   Stopping $service..."
-                (cd "$service" && docker compose down)
-            fi
-        done
-        
+
+        docker compose down
+
         echo "✅ All map services stopped"
         ;;
-        
+
     restart)
         echo "🔄 Restarting all map services..."
-        
-        # Stop first
-        for service in "${SERVICES[@]}"; do
-            if [ -d "$service" ]; then
-                (cd "$service" && docker compose down)
-            fi
-        done
-        
-        # Then start
+
+        docker compose down
         docker network create carpool_network 2>/dev/null || true
-        
-        for service in "${SERVICES[@]}"; do
-            if [ -d "$service" ]; then
-                echo "   Starting $service..."
-                (cd "$service" && docker compose up -d)
-            fi
-        done
-        
+        docker compose up -d
+
         echo "✅ All map services restarted"
         ;;
-        
+
     status)
         echo "📊 Map Services Status:"
         echo "======================"
-        
-        for service in "${SERVICES[@]}"; do
-            if [ -d "$service" ]; then
-                echo ""
-                echo "📍 $service:"
-                (cd "$service" && docker compose ps --format "table {{.Service}}\t{{.State}}\t{{.Status}}")
-            else
-                echo "📍 $service: Directory not found"
-            fi
-        done
+
+        docker compose ps --format "table {{.Service}}\t{{.State}}\t{{.Status}}\t{{.Ports}}"
         ;;
-        
+
     logs)
         SERVICE="${2:-}"
-        
-        if [ -n "$SERVICE" ] && [ -d "$SERVICE" ]; then
+
+        if [ -n "$SERVICE" ]; then
             echo "📋 Showing logs for $SERVICE..."
-            (cd "$SERVICE" && docker compose logs -f)
+            docker compose logs -f "$SERVICE"
         else
             echo "📋 Available services for logs:"
-            for service in "${SERVICES[@]}"; do
-                if [ -d "$service" ]; then
-                    echo "   - $service"
-                fi
-            done
+            echo "   - tileserver-gl"
+            echo "   - nominatim"
+            echo "   - osrm"
             echo ""
             echo "Usage: $0 logs <service-name>"
+            echo "   or: $0 logs (for all services)"
+            echo ""
+            echo "To view all logs: docker compose logs -f"
         fi
         ;;
-        
+
     *)
         echo "Map Services Management"
         echo "====================="
@@ -103,7 +70,7 @@ case "${1:-}" in
         echo ""
         echo "Commands:"
         echo "  start    Start all map services"
-        echo "  stop     Stop all map services"  
+        echo "  stop     Stop all map services"
         echo "  restart  Restart all map services"
         echo "  status   Show status of all services"
         echo "  logs     Show logs (specify service name)"
