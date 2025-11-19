@@ -1,4 +1,4 @@
-_format_version: "2.1"
+_format_version: '2.1'
 _transform: true
 
 consumers:
@@ -32,7 +32,6 @@ services:
       - name: cors
 
   - name: auth-v1
-    _comment: "GoTrue: /auth/v1/ -> http://auth:9999/"
     url: http://auth:9999/
     plugins:
       - name: cors
@@ -47,7 +46,6 @@ services:
             - service_role
 
   - name: rest-v1
-    _comment: "PostgREST: /rest/v1/ -> http://rest:3000/"
     url: http://rest:3000/
     plugins:
       - name: cors
@@ -62,7 +60,6 @@ services:
             - service_role
 
   - name: realtime-v1
-    _comment: "Realtime: /realtime/v1/ -> ws://realtime:4000/socket/"
     url: http://realtime:4000/socket/
     plugins:
       - name: cors
@@ -77,19 +74,16 @@ services:
             - service_role
 
   - name: storage-v1
-    _comment: "Storage: /storage/v1/ -> http://storage:5000/"
     url: http://storage:5000/
     plugins:
       - name: cors
 
   - name: functions-v1
-    _comment: "Edge Functions: /functions/v1/ -> http://functions:9000/"
     url: http://functions:9000/
     plugins:
       - name: cors
 
   - name: analytics-v1
-    _comment: "Analytics: /analytics/v1/ -> http://analytics:4000/"
     url: http://analytics:4000/
     plugins:
       - name: cors
@@ -103,7 +97,6 @@ services:
             - service_role
 
   - name: meta
-    _comment: "pg-meta: /pg/ -> http://meta:8080/"
     url: http://meta:8080/
     plugins:
       - name: key-auth
