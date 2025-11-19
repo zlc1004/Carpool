@@ -82,7 +82,7 @@ fi
 
 if [ -f "supabase/migrations/02_rls_policies.sql" ]; then
     docker compose exec -T supabase-db psql -U supabase_admin -d postgres < supabase/migrations/02_rls_policies.sql
-    echo "✅ RLS policies applied"
+    echo "��� RLS policies applied"
 fi
 
 if [ -f "supabase/migrations/03_seed_data.sql" ]; then
@@ -101,26 +101,21 @@ wait_for_service "supabase-auth" 8
 echo "🎨 Starting Supabase Studio..."
 docker compose up -d supabase-studio
 
-# Start map services (if data exists) - now in separate services
+# Start map services (if data exists) - now in consolidated services
 if [ -d "openmaptilesdata/data" ] && [ "$(ls -A openmaptilesdata/data)" ]; then
-    echo "🗺️  Starting map services from ./services..."
+    echo "🗺️  Starting map services from ../services..."
 
     # Create external network if it doesn't exist
     docker network create carpool_network 2>/dev/null || true
 
-    # Start each map service
-    echo "   📍 Starting Nominatim..."
-    (cd ../services/nominatim && docker compose up -d)
+    # Start all map services from consolidated compose file
+    (cd ../services && docker compose up -d)
 
-    echo "   🗺️  Starting Tileserver..."
-    (cd ../services/tileserver-gl && docker compose up -d)
-
-    echo "   🛣️  Starting OSRM..."
-    (cd ../services/osrm && docker compose up -d)
+    echo "   ✅ All map services started (tileserver-gl, nominatim, osrm)"
 else
     echo "⚠️  Map data not found. Skipping external map services."
     echo "   To add map services, please provide map data in openmaptilesdata/ and osrmdata/ directories."
-    echo "   Then start services manually: cd ../services/[service] && docker compose up -d"
+    echo "   Then start services manually: cd ../services && docker compose up -d"
 fi
 
 
