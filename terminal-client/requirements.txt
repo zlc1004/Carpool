@@ -1,0 +1,44 @@
+# CarpSchool Terminal Client Dependencies
+
+# HTTP requests
+requests>=2.28.0
+
+# JSON Web Token handling (optional, for token inspection)
+PyJWT>=2.6.0
+
+# Rich terminal formatting (optional, for better UX)
+rich>=13.0.0
+
+# Python standard library dependencies (these come with Python)
+# - json
+# - os
+# - sys
+# - datetime
+# - typing
+
+# Optional dependencies for enhanced features:
+
+# For async HTTP requests (if needed in future)
+# aiohttp>=3.8.0
+
+# For WebSocket realtime connections (if implementing full realtime)
+# websockets>=10.4
+
+# For better command line argument parsing (if expanding CLI)
+# click>=8.1.0
+# argparse (built-in)
+
+# For configuration file parsing (if adding YAML/TOML support)
+# pyyaml>=6.0
+# toml>=0.10.2
+
+# For secure password input
+# getpass (built-in)
+
+# For better error handling and debugging
+# traceback (built-in)
+
+# Development dependencies (optional)
+# pytest>=7.0.0
+# black>=22.0.0
+# flake8>=5.0.0
