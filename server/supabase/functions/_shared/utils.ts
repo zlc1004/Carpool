@@ -12,8 +12,7 @@ export interface AuthenticatedUser {
   profile?: {
     school_id: string;
     role: 'user' | 'admin' | 'school_admin';
-    first_name: string;
-    last_name: string;
+    name: string;
   };
 }
 
@@ -39,7 +38,7 @@ export async function authenticate(
     // Get user profile
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('school_id, role, first_name, last_name')
+      .select('school_id, role, name')
       .eq('id', user.id)
       .single();
 
@@ -64,9 +63,9 @@ export async function authenticate(
 export function createErrorResponse(error: string, status: number = 400) {
   return new Response(
     JSON.stringify({ error }),
-    { 
-      status, 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    {
+      status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     }
   );
 }
@@ -74,9 +73,9 @@ export function createErrorResponse(error: string, status: number = 400) {
 export function createSuccessResponse(data: any, status: number = 200) {
   return new Response(
     JSON.stringify({ data }),
-    { 
-      status, 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    {
+      status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     }
   );
 }
@@ -84,9 +83,9 @@ export function createSuccessResponse(data: any, status: number = 200) {
 export function createMessageResponse(message: string, status: number = 200) {
   return new Response(
     JSON.stringify({ success: true, message }),
-    { 
-      status, 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    {
+      status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     }
   );
 }
@@ -134,7 +133,7 @@ export async function rateLimitCheck(
 ): Promise<{ allowed: boolean; remaining?: number }> {
   try {
     const windowStart = new Date(Date.now() - windowMinutes * 60 * 1000);
-    
+
     // Build query based on available identifiers
     let query = supabase
       .from('rate_limits')
@@ -169,9 +168,9 @@ export async function rateLimitCheck(
         window_start: existing ? existing.window_start : new Date().toISOString()
       });
 
-    return { 
-      allowed: true, 
-      remaining: maxRequests - newCount 
+    return {
+      allowed: true,
+      remaining: maxRequests - newCount
     };
   } catch (error) {
     console.error('Rate limit check error:', error);
@@ -209,8 +208,8 @@ export async function logError(
 export function getClientInfo(request: Request) {
   return {
     userAgent: request.headers.get('user-agent') || 'unknown',
-    ip: request.headers.get('x-forwarded-for') || 
-        request.headers.get('x-real-ip') || 
+    ip: request.headers.get('x-forwarded-for') ||
+        request.headers.get('x-real-ip') ||
         'unknown',
     referer: request.headers.get('referer') || 'unknown'
   };
@@ -246,7 +245,7 @@ export async function cleanupExpiredData(supabase: any) {
 
 export function parseQueryParams(url: URL) {
   const params: { [key: string]: string | number | boolean } = {};
-  
+
   for (const [key, value] of url.searchParams.entries()) {
     // Try to parse as number
     if (!isNaN(Number(value))) {
@@ -261,7 +260,7 @@ export function parseQueryParams(url: URL) {
       params[key] = value;
     }
   }
-  
+
   return params;
 }
 

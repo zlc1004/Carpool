@@ -9,8 +9,7 @@ const corsHeaders = {
 
 // Validation schemas
 const updateUserSchema = Joi.object({
-  first_name: Joi.string().min(1).max(50),
-  last_name: Joi.string().min(1).max(50),
+  name: Joi.string().min(1).max(100),
   role: Joi.string().valid('user', 'admin', 'school_admin'),
   verification_status: Joi.string().valid('pending', 'verified', 'rejected'),
   driver_license_verified: Joi.boolean()
@@ -83,7 +82,7 @@ serve(async (req) => {
 
     const url = new URL(req.url);
     const method = url.pathname.split('/').pop();
-    
+
     switch (method) {
       case 'users': {
         const { authorized, profile } = await checkAdminPermission(supabase, user.id, 'school_admin');
@@ -142,7 +141,7 @@ serve(async (req) => {
         const body = await req.json();
         const { userId } = body;
         const { error: validationError, value } = updateUserSchema.validate(body);
-        
+
         if (validationError) {
           return new Response(
             JSON.stringify({ error: validationError.details[0].message }),
@@ -244,12 +243,12 @@ serve(async (req) => {
               *,
               origin:places!rides_origin_id_fkey(name, address),
               destination:places!rides_destination_id_fkey(name, address),
-              driver:profiles!rides_driver_id_fkey(first_name, last_name, email),
+              driver:profiles!rides_driver_id_fkey(name, email),
               ride_participants(
                 id,
                 seats_requested,
                 status,
-                user:profiles(first_name, last_name, email)
+                user:profiles(name, email)
               )
             `);
 
@@ -358,7 +357,7 @@ serve(async (req) => {
         if (req.method === 'POST') {
           const body = await req.json();
           const { error: validationError, value } = createSchoolSchema.validate(body);
-          
+
           if (validationError) {
             return new Response(
               JSON.stringify({ error: validationError.details[0].message }),

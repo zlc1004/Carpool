@@ -13,8 +13,7 @@ const sendVerificationSchema = Joi.object({
 });
 
 const updateProfileSchema = Joi.object({
-  first_name: Joi.string().min(1).max(50),
-  last_name: Joi.string().min(1).max(50),
+  name: Joi.string().min(1).max(100),
   phone: Joi.string().pattern(/^\+?[1-9]\d{1,14}$/),
   bio: Joi.string().max(500),
   student_id: Joi.string().max(20),
@@ -60,7 +59,7 @@ serve(async (req) => {
 
     const url = new URL(req.url);
     const method = url.pathname.split('/').pop();
-    
+
     switch (method) {
       case 'send-verification-email': {
         if (req.method !== 'POST') {
@@ -69,7 +68,7 @@ serve(async (req) => {
 
         const body = await req.json();
         const { error: validationError } = sendVerificationSchema.validate(body);
-        
+
         if (validationError) {
           return new Response(
             JSON.stringify({ error: validationError.details[0].message }),
@@ -131,7 +130,7 @@ serve(async (req) => {
 
         const body = await req.json();
         const { error: validationError, value } = updateProfileSchema.validate(body);
-        
+
         if (validationError) {
           return new Response(
             JSON.stringify({ error: validationError.details[0].message }),

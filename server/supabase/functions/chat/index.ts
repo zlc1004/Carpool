@@ -52,7 +52,7 @@ serve(async (req) => {
 
     const url = new URL(req.url);
     const method = url.pathname.split('/').pop();
-    
+
     switch (method) {
       case 'send': {
         if (req.method !== 'POST') {
@@ -61,7 +61,7 @@ serve(async (req) => {
 
         const body = await req.json();
         const { error: validationError, value } = sendMessageSchema.validate(body);
-        
+
         if (validationError) {
           return new Response(
             JSON.stringify({ error: validationError.details[0].message }),
@@ -101,8 +101,7 @@ serve(async (req) => {
             *,
             sender:profiles!chat_messages_sender_id_fkey(
               id,
-              first_name,
-              last_name,
+              name,
               avatar_url
             )
           `)
@@ -165,8 +164,7 @@ serve(async (req) => {
             *,
             sender:profiles!chat_messages_sender_id_fkey(
               id,
-              first_name,
-              last_name,
+              name,
               avatar_url
             )
           `)
@@ -197,7 +195,7 @@ serve(async (req) => {
         const body = await req.json();
         const { messageId } = body;
         const { error: validationError, value } = editMessageSchema.validate(body);
-        
+
         if (validationError) {
           return new Response(
             JSON.stringify({ error: validationError.details[0].message }),
@@ -226,8 +224,7 @@ serve(async (req) => {
             *,
             sender:profiles!chat_messages_sender_id_fkey(
               id,
-              first_name,
-              last_name,
+              name,
               avatar_url
             )
           `)

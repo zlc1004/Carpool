@@ -79,7 +79,7 @@ serve(async (req) => {
 
     const url = new URL(req.url);
     const method = url.pathname.split('/').pop();
-    
+
     switch (method) {
       case 'create': {
         if (req.method !== 'POST') {
@@ -88,7 +88,7 @@ serve(async (req) => {
 
         const body = await req.json();
         const { error: validationError, value } = createRideSchema.validate(body);
-        
+
         if (validationError) {
           return new Response(
             JSON.stringify({ error: validationError.details[0].message }),
@@ -138,7 +138,7 @@ serve(async (req) => {
             *,
             origin:places!rides_origin_id_fkey(id, name, address),
             destination:places!rides_destination_id_fkey(id, name, address),
-            driver:profiles!rides_driver_id_fkey(id, first_name, last_name, avatar_url)
+            driver:profiles!rides_driver_id_fkey(id, name, avatar_url)
           `)
           .single();
 
@@ -164,7 +164,7 @@ serve(async (req) => {
         const body = await req.json();
         const { rideId } = body;
         const { error: validationError, value } = joinRideSchema.validate(body);
-        
+
         if (validationError) {
           return new Response(
             JSON.stringify({ error: validationError.details[0].message }),
