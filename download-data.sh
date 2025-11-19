@@ -138,7 +138,7 @@ if ui_ask_yes_no "Download OpenMapTiles data?" "N"; then
     echo ""
 
     # Create target directory structure
-    TARGET_DIR="openmaptilesdata/tarballs/chunks"
+    TARGET_DIR="services/openmaptilesdata/tarballs/chunks"
     map_create_target_dir "$TARGET_DIR"
 
     # Check download tool availability
@@ -163,21 +163,21 @@ if ui_ask_yes_no "Download OpenMapTiles data?" "N"; then
 
         # Concatenate chunk parts into final tar.gz file
         if [[ $failed_downloads -eq 0 ]]; then
-            final_archive="openmaptilesdata/tarballs/openmaptilesdata.tar.gz"
+            final_archive="services/openmaptilesdata/tarballs/openmaptilesdata.tar.gz"
 
             if download_concatenate_chunks "$TARGET_DIR" "$final_archive" "openmaptilesdata.tar.gz.*.part"; then
 
                 # Ask user if they want to extract the archive
                 if ui_ask_yes_no "Do you want to extract the archive now?" "N"; then
-                    if download_extract_archive "$final_archive" "openmaptilesdata" "1"; then
+                    if download_extract_archive "$final_archive" "services/openmaptilesdata" "1"; then
                         echo ""
-                        echo "OpenMapTiles data is now ready for use in: openmaptilesdata/"
+                        echo "OpenMapTiles data is now ready for use in: services/openmaptilesdata/"
                     fi
                 else
                     echo ""
                     echo "Archive not extracted. You can extract it later with:"
-                    echo "  mkdir -p openmaptilesdata"
-                    echo "  tar -xzf $final_archive -C openmaptilesdata/ --strip-components=1"
+                    echo "  mkdir -p services/openmaptilesdata"
+                    echo "  tar -xzf $final_archive -C services/openmaptilesdata/ --strip-components=1"
                 fi
 
                 echo ""
@@ -186,10 +186,10 @@ if ui_ask_yes_no "Download OpenMapTiles data?" "N"; then
 
                 # Ask if user wants to delete the entire tarballs directory
                 echo "This will remove the final archive and all downloaded chunks."
-                if ui_ask_yes_no "Do you want to delete the tarballs directory (openmaptilesdata/tarballs)?" "N"; then
+                if ui_ask_yes_no "Do you want to delete the tarballs directory (services/openmaptilesdata/tarballs)?" "N"; then
                     echo ""
-                    echo "Deleting openmaptilesdata/tarballs/..."
-                    if rm -rf openmaptilesdata/tarballs/; then
+                    echo "Deleting services/openmaptilesdata/tarballs/..."
+                    if rm -rf services/openmaptilesdata/tarballs/; then
                         echo "✓ Tarballs directory deleted successfully"
                     else
                         echo "✗ Failed to delete tarballs directory"
@@ -198,10 +198,10 @@ if ui_ask_yes_no "Download OpenMapTiles data?" "N"; then
                     # If not deleting tarballs, ask about chunks only
                     echo ""
                     echo "This will keep the final archive but remove the individual chunk files."
-                    if ui_ask_yes_no "Do you want to delete just the chunks directory (openmaptilesdata/tarballs/chunks)?" "N"; then
+                    if ui_ask_yes_no "Do you want to delete just the chunks directory (services/openmaptilesdata/tarballs/chunks)?" "N"; then
                         echo ""
-                        echo "Deleting openmaptilesdata/tarballs/chunks/..."
-                        if rm -rf openmaptilesdata/tarballs/chunks/; then
+                        echo "Deleting services/openmaptilesdata/tarballs/chunks/..."
+                        if rm -rf services/openmaptilesdata/tarballs/chunks/; then
                             echo "✓ Chunks directory deleted successfully"
                             echo "Final archive preserved at: $final_archive"
                         else
@@ -211,7 +211,7 @@ if ui_ask_yes_no "Download OpenMapTiles data?" "N"; then
                         echo ""
                         echo "No cleanup performed. All files preserved:"
                         echo "  - Final archive: $final_archive"
-                        echo "  - Individual chunks: openmaptilesdata/tarballs/chunks/"
+                        echo "  - Individual chunks: services/openmaptilesdata/tarballs/chunks/"
                     fi
                 fi
             fi
@@ -263,7 +263,7 @@ if ui_ask_yes_no "Do you want to download OSRM routing data?" "N"; then
     echo ""
 
     # Create target directory structure for OSRM
-    OSRM_TARGET_DIR="osrmdata/tarballs/chunks"
+    OSRM_TARGET_DIR="services/osrmdata/tarballs/chunks"
     map_create_target_dir "$OSRM_TARGET_DIR"
 
     # Check download tool availability
@@ -288,21 +288,21 @@ if ui_ask_yes_no "Do you want to download OSRM routing data?" "N"; then
 
         # Concatenate chunk parts into final tar.gz file
         if [[ $osrm_failed_downloads -eq 0 ]]; then
-            osrm_final_archive="osrmdata/tarballs/osrmdata.tar.gz"
+            osrm_final_archive="services/osrmdata/tarballs/osrmdata.tar.gz"
 
             if download_concatenate_chunks "$OSRM_TARGET_DIR" "$osrm_final_archive" "osrmdata.tar.gz.*.part"; then
 
                 # Ask user if they want to extract the OSRM archive
                 if ui_ask_yes_no "Do you want to extract the OSRM archive now?" "Y"; then
-                    if download_extract_archive "$osrm_final_archive" "osrmdata" "1"; then
+                    if download_extract_archive "$osrm_final_archive" "services/osrmdata" "1"; then
                         echo ""
-                        echo "OSRM routing data is now ready for use in: osrmdata/"
+                        echo "OSRM routing data is now ready for use in: services/osrmdata/"
                     fi
                 else
                     echo ""
                     echo "OSRM archive not extracted. You can extract it later with:"
-                    echo "  mkdir -p osrmdata"
-                    echo "  tar -xzf $osrm_final_archive -C osrmdata/ --strip-components=1"
+                    echo "  mkdir -p services/osrmdata"
+                    echo "  tar -xzf $osrm_final_archive -C services/osrmdata/ --strip-components=1"
                 fi
 
                 echo ""
@@ -311,10 +311,10 @@ if ui_ask_yes_no "Do you want to download OSRM routing data?" "N"; then
 
                 # Ask if user wants to delete the OSRM tarballs directory
                 echo "This will remove the final OSRM archive and all downloaded chunks."
-                if ui_ask_yes_no "Do you want to delete the OSRM tarballs directory (osrmdata/tarballs)?" "N"; then
+                if ui_ask_yes_no "Do you want to delete the OSRM tarballs directory (services/osrmdata/tarballs)?" "N"; then
                     echo ""
-                    echo "Deleting osrmdata/tarballs/..."
-                    if rm -rf osrmdata/tarballs/; then
+                    echo "Deleting services/osrmdata/tarballs/..."
+                    if rm -rf services/osrmdata/tarballs/; then
                         echo "✓ OSRM tarballs directory deleted successfully"
                     else
                         echo "✗ Failed to delete OSRM tarballs directory"
@@ -323,10 +323,10 @@ if ui_ask_yes_no "Do you want to download OSRM routing data?" "N"; then
                     # If not deleting tarballs, ask about chunks only
                     echo ""
                     echo "This will keep the final OSRM archive but remove the individual chunk files."
-                    if ui_ask_yes_no "Do you want to delete just the OSRM chunks directory (osrmdata/tarballs/chunks)?" "N"; then
+                    if ui_ask_yes_no "Do you want to delete just the OSRM chunks directory (services/osrmdata/tarballs/chunks)?" "N"; then
                         echo ""
-                        echo "Deleting osrmdata/tarballs/chunks/..."
-                        if rm -rf osrmdata/tarballs/chunks/; then
+                        echo "Deleting services/osrmdata/tarballs/chunks/..."
+                        if rm -rf services/osrmdata/tarballs/chunks/; then
                             echo "✓ OSRM chunks directory deleted successfully"
                             echo "Final OSRM archive preserved at: $osrm_final_archive"
                         else
@@ -336,7 +336,7 @@ if ui_ask_yes_no "Do you want to download OSRM routing data?" "N"; then
                         echo ""
                         echo "No OSRM cleanup performed. All files preserved:"
                         echo "  - Final OSRM archive: $osrm_final_archive"
-                        echo "  - Individual chunks: osrmdata/tarballs/chunks/"
+                        echo "  - Individual chunks: services/osrmdata/tarballs/chunks/"
                     fi
                 fi
             fi

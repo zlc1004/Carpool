@@ -102,11 +102,11 @@ echo "🎨 Starting Supabase Studio..."
 docker compose up -d supabase-studio
 
 # Note: Map services are managed separately
-if [ -d "openmaptilesdata/data" ] && [ "$(ls -A openmaptilesdata/data)" ]; then
+if [ -d "../services/openmaptilesdata/data" ] && [ "$(ls -A ../services/openmaptilesdata/data)" ]; then
     echo "📍 Map data found. To use map services, start them separately:"
     echo "   cd ../services && docker compose up -d"
 else
-    echo "📍 Map data not found in openmaptilesdata/ and osrmdata/ directories."
+    echo "📍 Map data not found in services/openmaptilesdata/ and services/osrmdata/ directories."
     echo "   Map services are managed separately and can be started independently."
 fi
 
@@ -133,7 +133,7 @@ echo "🗺️  Map Services (managed separately):"
 echo "   Start services:        cd ../services && docker compose up -d"
 echo "   📍 Nominatim:          http://localhost:40060 (if proxy enabled)"
 echo "   🗺️  Tileserver:         http://localhost:40061 (if proxy enabled)"
-echo "   🛣��  OSRM:              http://localhost:40062 (if proxy enabled)"
+echo "   🛣️  OSRM:              http://localhost:40062 (if proxy enabled)"
 echo ""
 
 

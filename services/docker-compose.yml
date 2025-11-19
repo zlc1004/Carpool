@@ -8,9 +8,9 @@ services:
       - --config
       - "/style/config.json"
     volumes:
-      - ../server/openmaptilesdata/data:/data
-      - ../server/openmaptilesdata/style:/style
-      - ../server/openmaptilesdata/build:/build
+      - ./openmaptilesdata/data:/data
+      - ./openmaptilesdata/style:/style
+      - ./openmaptilesdata/build:/build
     restart: unless-stopped
     networks:
       - carpool_network
@@ -28,8 +28,8 @@ services:
     environment:
       - PBF_PATH=/nominatim/data/north-america/canada/${REGION:-british-columbia}.osm.pbf
     volumes:
-      - ../server/openmaptilesdata/data:/nominatim/data
-      - ../server/pgdataNominatimInternal:/var/lib/postgresql/16/main
+      - ./openmaptilesdata/data:/nominatim/data
+      - ./pgdataNominatimInternal:/var/lib/postgresql/16/main
     restart: unless-stopped
     networks:
       - carpool_network
@@ -45,7 +45,7 @@ services:
     image: ghcr.io/project-osrm/osrm-backend
     command: osrm-routed --algorithm mld /data/${REGION:-british-columbia}.osrm --port 8083
     volumes:
-      - ../server/osrmdata/data:/data
+      - ./osrmdata/data:/data
     restart: unless-stopped
     networks:
       - carpool_network

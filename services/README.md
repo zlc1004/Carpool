@@ -34,7 +34,7 @@ docker compose up -d
 
 ### Prerequisites
 1. Ensure the main server is running to create the `carpool_network`
-2. Ensure map data is available in `../server/openmaptilesdata/` and `../server/osrmdata/`
+2. Ensure map data is available in `./openmaptilesdata/` and `./osrmdata/`
 
 ### Using the Management Script
 ```bash
@@ -77,7 +77,7 @@ docker compose down
 
 ### Map Data Structure
 ```
-server/
+services/
 ├── openmaptilesdata/
 │   ├── data/           # Map data files (.mbtiles, .osm.pbf)
 │   ├── style/          # Map styling configuration
@@ -88,10 +88,12 @@ server/
 ```
 
 ### Setting Up Map Data
-1. Download OpenMapTiles data for your region
-2. Place .mbtiles files in `server/openmaptilesdata/data/`
-3. Configure styling in `server/openmaptilesdata/style/`
-4. Prepare OSRM routing data and place in `server/osrmdata/data/`
+1. Run the download script from the project root: `./download-data.sh`
+2. Or manually:
+   - Download OpenMapTiles data for your region
+   - Place .mbtiles files in `services/openmaptilesdata/data/`
+   - Configure styling in `services/openmaptilesdata/style/`
+   - Prepare OSRM routing data and place in `services/osrmdata/data/`
 
 ## Network
 All services connect to the external `carpool_network` Docker network, allowing communication with the main Supabase server and each other.
