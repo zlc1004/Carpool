@@ -71,6 +71,7 @@ export type RootStackParamList = {
   PlaceManager: undefined;
   CreateRide: undefined;
   JoinRide: { rideId: string };
+  Notifications: undefined;
 };
 
 export type TabParamList = {

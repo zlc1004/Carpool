@@ -1,9 +1,10 @@
-import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import React, { forwardRef } from 'react';
+import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../hooks/useAuth';
+import { useNotifications } from '../hooks/useNotifications';
 import { RootStackParamList, TabParamList } from '../types';
 
 // Import screens
@@ -24,11 +25,14 @@ import PlaceManagerScreen from '../screens/PlaceManagerScreen';
 import CreateRideScreen from '../screens/CreateRideScreen';
 import JoinRideScreen from '../screens/JoinRideScreen';
 import LoadingScreen from '../components/LoadingScreen';
+import NotificationScreen from '../screens/NotificationScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
 const TabNavigator = () => {
+  const { unreadCount } = useNotifications();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -63,6 +67,15 @@ const TabNavigator = () => {
           fontSize: 12,
           fontWeight: '500',
         },
+        tabBarBadge: route.name === 'Messages' && unreadCount > 0 ? unreadCount : undefined,
+        tabBarBadgeStyle: {
+          backgroundColor: '#dc3545',
+          color: '#fff',
+          fontSize: 12,
+          minWidth: 18,
+          height: 18,
+          borderRadius: 9,
+        },
       })}
     >
       <Tab.Screen 
@@ -89,7 +102,7 @@ const TabNavigator = () => {
   );
 };
 
-const AppNavigator: React.FC = () => {
+const AppNavigator = forwardRef<NavigationContainerRef<RootStackParamList>>((props, ref) => {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -97,7 +110,7 @@ const AppNavigator: React.FC = () => {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={ref}>
       <Stack.Navigator 
         screenOptions={{ 
           headerShown: false,
@@ -182,6 +195,16 @@ const AppNavigator: React.FC = () => {
                 headerTintColor: '#fff',
               }}
             />
+            <Stack.Screen 
+              name="Notifications" 
+              component={NotificationScreen}
+              options={{ 
+                headerShown: true,
+                title: 'Notifications',
+                headerStyle: { backgroundColor: '#007bff' },
+                headerTintColor: '#fff',
+              }}
+            />
           </>
         ) : (
           // User is not signed in
@@ -197,6 +220,8 @@ const AppNavigator: React.FC = () => {
       </Stack.Navigator>
     </NavigationContainer>
   );
-};
+});
+
+AppNavigator.displayName = 'AppNavigator';
 
 export default AppNavigator;
