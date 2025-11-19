@@ -1,298 +1,227 @@
-import { serve } from "https://deno.land/std@0.177.1/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import Joi from "https://esm.sh/joi@17.11.0";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { corsHeaders } from '../shared/cors.ts';
+import { expoPushService, ExpoNotificationData } from '../shared/expo-push-service.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// Initialize Supabase client
+const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-// Validation schemas
-const createNotificationSchema = Joi.object({
-  user_id: Joi.string().uuid().required(),
-  type: Joi.string().valid('ride_request', 'ride_accepted', 'ride_cancelled', 'message', 'system').required(),
-  title: Joi.string().min(1).max(100).required(),
-  message: Joi.string().min(1).max(500).required(),
-  data: Joi.object().default({}),
-  expires_at: Joi.date().iso()
-});
+interface NotificationRequest {
+  type: 'ride_request' | 'ride_confirmed' | 'ride_cancelled' | 'message' | 'system';
+  userId?: string;
+  userIds?: string[];
+  title: string;
+  body: string;
+  data?: any;
+  sound?: 'default' | null;
+  badge?: number;
+  priority?: 'default' | 'normal' | 'high';
+}
 
-const updateSubscriptionSchema = Joi.object({
-  endpoint: Joi.string().uri().required(),
-  p256dh: Joi.string().required(),
-  auth: Joi.string().required(),
-  platform: Joi.string().valid('web', 'ios', 'android').required()
-});
+interface SubscribeRequest {
+  action: 'subscribe' | 'unsubscribe';
+  expoPushToken: string;
+  userId: string;
+}
 
-// Simple push notification sender (replace with OneSignal or FCM in production)
-async function sendPushNotification(subscription: any, notification: any) {
+/**
+ * Send push notifications using Expo Push Service
+ */
+async function sendExpoPushNotifications(
+  recipients: string[],
+  notification: Omit<ExpoNotificationData, 'to'>
+): Promise<{ success: boolean; error?: string }> {
   try {
-    // This would integrate with your push service (OneSignal, FCM, etc.)
-    // For now, just log the notification
-    console.log('Would send push notification:', {
-      subscription,
-      notification
-    });
+    if (recipients.length === 0) {
+      return { success: false, error: 'No recipients specified' };
+    }
+
+    // Get active push subscriptions for the recipients
+    const { data: subscriptions, error: subError } = await supabase
+      .from('push_subscriptions')
+      .select('expo_push_token, user_id')
+      .in('user_id', recipients)
+      .eq('active', true);
+
+    if (subError) {
+      console.error('Error fetching subscriptions:', subError);
+      return { success: false, error: 'Failed to fetch push subscriptions' };
+    }
+
+    if (!subscriptions || subscriptions.length === 0) {
+      console.log('No active push subscriptions found for recipients');
+      return { success: true }; // Not an error, just no one to notify
+    }
+
+    // Extract valid tokens
+    const tokens = subscriptions
+      .map(sub => sub.expo_push_token)
+      .filter(token => token && expoPushService.isValidExpoPushToken(token));
+
+    if (tokens.length === 0) {
+      console.log('No valid Expo push tokens found');
+      return { success: true };
+    }
+
+    // Prepare notification data
+    const expoNotifications: ExpoNotificationData[] = [{
+      to: tokens,
+      title: notification.title,
+      body: notification.body,
+      data: notification.data || {},
+      sound: notification.sound || 'default',
+      badge: notification.badge,
+      priority: notification.priority || 'default',
+      channelId: 'default' // Default channel for Android
+    }];
+
+    // Send notifications
+    const result = await expoPushService.sendPushNotifications(expoNotifications);
+    
+    if (!result.success) {
+      return { success: false, error: result.error };
+    }
+
+    // Store notification records in database
+    const notificationRecords = recipients.map(userId => ({
+      user_id: userId,
+      title: notification.title,
+      body: notification.body,
+      data: notification.data || {},
+      read: false,
+      type: notification.data?.type || 'general'
+    }));
+
+    const { error: insertError } = await supabase
+      .from('notifications')
+      .insert(notificationRecords);
+
+    if (insertError) {
+      console.error('Error storing notification records:', insertError);
+      // Don't fail the request just because we couldn't store the record
+    }
+
+    // Check for invalid tokens and clean them up
+    if (result.tickets) {
+      const invalidTokens: string[] = [];
+      
+      result.tickets.forEach((ticket, index) => {
+        if (ticket.status === 'error' && ticket.details?.error === 'DeviceNotRegistered') {
+          const tokenIndex = index % tokens.length;
+          invalidTokens.push(tokens[tokenIndex]);
+        }
+      });
+
+      if (invalidTokens.length > 0) {
+        await expoPushService.cleanupInvalidTokens(invalidTokens, supabase);
+      }
+    }
+
+    console.log(`Successfully sent push notifications to ${tokens.length} devices`);
     return { success: true };
+
   } catch (error) {
-    console.error('Push notification error:', error);
-    return { success: false, error };
+    console.error('Error in sendExpoPushNotifications:', error);
+    return { success: false, error: error.message };
   }
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
+  // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    const { method, url } = req;
+    const urlPath = new URL(url).pathname;
 
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
+    // Route: POST /notifications/send - Send notifications
+    if (method === 'POST' && urlPath.endsWith('/send')) {
+      const body: NotificationRequest = await req.json();
+      
+      // Determine recipients
+      let recipients: string[] = [];
+      if (body.userId) {
+        recipients = [body.userId];
+      } else if (body.userIds) {
+        recipients = body.userIds;
+      } else {
+        return new Response(
+          JSON.stringify({ error: 'Either userId or userIds must be provided' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Send notifications
+      const result = await sendExpoPushNotifications(recipients, {
+        title: body.title,
+        body: body.body,
+        data: { 
+          type: body.type,
+          ...body.data 
+        },
+        sound: body.sound,
+        badge: body.badge,
+        priority: body.priority
+      });
+
       return new Response(
-        JSON.stringify({ error: 'Missing Authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify(result),
+        { 
+          status: result.success ? 200 : 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
       );
     }
 
-    // Get user from JWT token
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    );
-
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid or expired token' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const url = new URL(req.url);
-    const method = url.pathname.split('/').pop();
-    
-    switch (method) {
-      case 'get': {
-        if (req.method !== 'GET') {
-          return new Response('Method not allowed', { status: 405, headers: corsHeaders });
-        }
-
-        const url = new URL(req.url);
-        const unreadOnly = url.searchParams.get('unread_only') === 'true';
-        const limit = parseInt(url.searchParams.get('limit') || '50');
-        const offset = parseInt(url.searchParams.get('offset') || '0');
-
-        let query = supabase
-          .from('notifications')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .range(offset, offset + limit - 1);
-
-        if (unreadOnly) {
-          query = query.is('read_at', null);
-        }
-
-        const { data, error } = await query;
-
-        if (error) {
-          console.error('Error fetching notifications:', error);
-          return new Response(
-            JSON.stringify({ error: 'Failed to fetch notifications' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
+    // Route: POST /notifications/subscribe - Manage push subscriptions
+    if (method === 'POST' && urlPath.endsWith('/subscribe')) {
+      const body: SubscribeRequest = await req.json();
+      
+      if (!expoPushService.isValidExpoPushToken(body.expoPushToken)) {
         return new Response(
-          JSON.stringify({ data }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: 'Invalid Expo push token format' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      case 'mark-read': {
-        if (req.method !== 'PUT') {
-          return new Response('Method not allowed', { status: 405, headers: corsHeaders });
-        }
-
-        const body = await req.json();
-        const { notificationId, markAllRead } = body;
-
-        if (markAllRead) {
-          // Mark all notifications as read
-          const { error } = await supabase
-            .from('notifications')
-            .update({ read_at: new Date().toISOString() })
-            .eq('user_id', user.id)
-            .is('read_at', null);
-
-          if (error) {
-            console.error('Error marking all notifications as read:', error);
-            return new Response(
-              JSON.stringify({ error: 'Failed to mark notifications as read' }),
-              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-          }
-
-          return new Response(
-            JSON.stringify({ success: true, message: 'All notifications marked as read' }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        if (!notificationId) {
-          return new Response(
-            JSON.stringify({ error: 'Notification ID is required' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Mark specific notification as read
-        const { data, error } = await supabase
-          .from('notifications')
-          .update({ read_at: new Date().toISOString() })
-          .eq('id', notificationId)
-          .eq('user_id', user.id)
-          .select()
-          .single();
-
-        if (error) {
-          console.error('Error marking notification as read:', error);
-          return new Response(
-            JSON.stringify({ error: 'Failed to mark notification as read' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        return new Response(
-          JSON.stringify({ data }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      case 'create': {
-        if (req.method !== 'POST') {
-          return new Response('Method not allowed', { status: 405, headers: corsHeaders });
-        }
-
-        const body = await req.json();
-        const { error: validationError, value } = createNotificationSchema.validate(body);
-        
-        if (validationError) {
-          return new Response(
-            JSON.stringify({ error: validationError.details[0].message }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Create notification
-        const { data: notification, error } = await supabase
-          .from('notifications')
-          .insert(value)
-          .select()
-          .single();
-
-        if (error) {
-          console.error('Error creating notification:', error);
-          return new Response(
-            JSON.stringify({ error: 'Failed to create notification' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Get user's push subscriptions
-        const { data: subscriptions } = await supabase
-          .from('push_subscriptions')
-          .select('*')
-          .eq('user_id', value.user_id)
-          .eq('active', true);
-
-        // Send push notifications
-        if (subscriptions && subscriptions.length > 0) {
-          const pushPromises = subscriptions.map(subscription =>
-            sendPushNotification(subscription, {
-              title: value.title,
-              body: value.message,
-              data: value.data
-            })
-          );
-          
-          await Promise.all(pushPromises);
-        }
-
-        return new Response(
-          JSON.stringify({ data: notification }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      case 'subscribe': {
-        if (req.method !== 'POST') {
-          return new Response('Method not allowed', { status: 405, headers: corsHeaders });
-        }
-
-        const body = await req.json();
-        const { error: validationError, value } = updateSubscriptionSchema.validate(body);
-        
-        if (validationError) {
-          return new Response(
-            JSON.stringify({ error: validationError.details[0].message }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Upsert subscription
-        const { data, error } = await supabase
+      if (body.action === 'subscribe') {
+        // Add or update subscription
+        const { error } = await supabase
           .from('push_subscriptions')
           .upsert({
-            user_id: user.id,
-            ...value,
-            active: true
-          })
-          .select()
-          .single();
+            user_id: body.userId,
+            expo_push_token: body.expoPushToken,
+            active: true,
+            updated_at: new Date().toISOString()
+          });
 
         if (error) {
-          console.error('Error updating subscription:', error);
+          console.error('Error upserting subscription:', error);
           return new Response(
-            JSON.stringify({ error: 'Failed to update subscription' }),
+            JSON.stringify({ error: 'Failed to save subscription' }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
         return new Response(
-          JSON.stringify({ data }),
+          JSON.stringify({ success: true, message: 'Subscription saved' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
-      }
 
-      case 'unsubscribe': {
-        if (req.method !== 'POST') {
-          return new Response('Method not allowed', { status: 405, headers: corsHeaders });
-        }
-
-        const body = await req.json();
-        const { endpoint } = body;
-
-        if (!endpoint) {
-          return new Response(
-            JSON.stringify({ error: 'Endpoint is required' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
+      } else if (body.action === 'unsubscribe') {
         // Deactivate subscription
         const { error } = await supabase
           .from('push_subscriptions')
           .update({ active: false })
-          .eq('user_id', user.id)
-          .eq('endpoint', endpoint);
+          .eq('user_id', body.userId)
+          .eq('expo_push_token', body.expoPushToken);
 
         if (error) {
-          console.error('Error unsubscribing:', error);
+          console.error('Error deactivating subscription:', error);
           return new Response(
             JSON.stringify({ error: 'Failed to unsubscribe' }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -304,39 +233,62 @@ serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+    }
 
-      case 'cleanup': {
-        if (req.method !== 'POST') {
-          return new Response('Method not allowed', { status: 405, headers: corsHeaders });
-        }
+    // Route: GET /notifications/:userId - Get user notifications
+    if (method === 'GET' && urlPath.match(/\/notifications\/[^\/]+$/)) {
+      const userId = urlPath.split('/').pop();
+      
+      const { data: notifications, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(50);
 
-        // Clean up expired notifications
-        const { error } = await supabase
-          .from('notifications')
-          .delete()
-          .not('expires_at', 'is', null)
-          .lt('expires_at', new Date().toISOString());
-
-        if (error) {
-          console.error('Error cleaning up notifications:', error);
-          return new Response(
-            JSON.stringify({ error: 'Failed to cleanup notifications' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
+      if (error) {
+        console.error('Error fetching notifications:', error);
         return new Response(
-          JSON.stringify({ success: true, message: 'Cleanup completed' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: 'Failed to fetch notifications' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      default:
-        return new Response(
-          JSON.stringify({ error: 'Method not found' }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+      return new Response(
+        JSON.stringify({ notifications }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
+
+    // Route: POST /notifications/mark-read - Mark notifications as read
+    if (method === 'POST' && urlPath.endsWith('/mark-read')) {
+      const { userId, notificationIds } = await req.json();
+      
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('user_id', userId)
+        .in('id', notificationIds);
+
+      if (error) {
+        console.error('Error marking notifications as read:', error);
+        return new Response(
+          JSON.stringify({ error: 'Failed to mark notifications as read' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Default 404 response
+    return new Response(
+      JSON.stringify({ error: 'Not found' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
 
   } catch (error) {
     console.error('Notifications function error:', error);

@@ -1,418 +1,387 @@
-import { serve } from "https://deno.land/std@0.177.1/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import Joi from "https://esm.sh/joi@17.11.0";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { corsHeaders } from '../shared/cors.ts';
+import { NotificationHelpers } from '../shared/notification-helpers.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// Initialize Supabase client
+const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-// Validation schemas
-const createRideSchema = Joi.object({
-  origin_id: Joi.string().uuid().required(),
-  destination_id: Joi.string().uuid().required(),
-  departure_time: Joi.date().iso().required(),
-  seats_available: Joi.number().integer().min(1).max(8).required(),
-  price_per_seat: Joi.number().min(0).max(100).default(0),
-  notes: Joi.string().max(500).allow('').default('')
-});
+interface CreateRideRequest {
+  driverId: string;
+  origin: {
+    id: string;
+    name: string;
+    latitude: number;
+    longitude: number;
+  };
+  destination: {
+    id: string;
+    name: string;
+    latitude: number;
+    longitude: number;
+  };
+  departureTime: string;
+  availableSeats: number;
+  notes?: string;
+  price?: number;
+  recurring?: boolean;
+}
 
-const updateRideSchema = Joi.object({
-  origin_id: Joi.string().uuid(),
-  destination_id: Joi.string().uuid(),
-  departure_time: Joi.date().iso(),
-  seats_available: Joi.number().integer().min(1).max(8),
-  price_per_seat: Joi.number().min(0).max(100),
-  notes: Joi.string().max(500).allow('')
-});
+interface JoinRideRequest {
+  rideId: string;
+  riderId: string;
+  message?: string;
+}
 
-const joinRideSchema = Joi.object({
-  seats_requested: Joi.number().integer().min(1).max(4).default(1),
-  message: Joi.string().max(200).allow('').default('')
-});
+interface UpdateRideStatusRequest {
+  rideId: string;
+  status: 'active' | 'completed' | 'cancelled';
+  riderId?: string;
+  action?: 'approve' | 'reject';
+}
 
 serve(async (req) => {
-  // Handle CORS preflight requests
+  // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    const { method, url } = req;
+    const urlPath = new URL(url).pathname;
 
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
+    // Route: POST /rides/create - Create a new ride
+    if (method === 'POST' && urlPath.endsWith('/create')) {
+      const body: CreateRideRequest = await req.json();
+      
+      // Create the ride
+      const { data: ride, error: rideError } = await supabase
+        .from('rides')
+        .insert({
+          driver_id: body.driverId,
+          origin_place_id: body.origin.id,
+          destination_place_id: body.destination.id,
+          departure_time: body.departureTime,
+          available_seats: body.availableSeats,
+          notes: body.notes,
+          price: body.price,
+          recurring: body.recurring || false,
+          status: 'active'
+        })
+        .select()
+        .single();
+
+      if (rideError) {
+        console.error('Error creating ride:', rideError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to create ride' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       return new Response(
-        JSON.stringify({ error: 'Missing Authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ ride }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Get user from JWT token
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    );
+    // Route: POST /rides/join - Join a ride (create ride request)
+    if (method === 'POST' && urlPath.endsWith('/join')) {
+      const body: JoinRideRequest = await req.json();
+      
+      // Check if ride exists and has available seats
+      const { data: ride, error: rideError } = await supabase
+        .from('rides')
+        .select(`
+          *,
+          driver:profiles!rides_driver_id_fkey(first_name, last_name),
+          origin:places!rides_origin_place_id_fkey(name),
+          destination:places!rides_destination_place_id_fkey(name)
+        `)
+        .eq('id', body.rideId)
+        .single();
 
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid or expired token' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Get user's profile and school
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-
-    if (profileError || !profile) {
-      return new Response(
-        JSON.stringify({ error: 'Profile not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const url = new URL(req.url);
-    const method = url.pathname.split('/').pop();
-
-    switch (method) {
-      case 'create': {
-        if (req.method !== 'POST') {
-          return new Response('Method not allowed', { status: 405, headers: corsHeaders });
-        }
-
-        const body = await req.json();
-        const { error: validationError, value } = createRideSchema.validate(body);
-
-        if (validationError) {
-          return new Response(
-            JSON.stringify({ error: validationError.details[0].message }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Validate departure time is in the future
-        if (new Date(value.departure_time) <= new Date()) {
-          return new Response(
-            JSON.stringify({ error: 'Departure time must be in the future' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Validate origin and destination are different
-        if (value.origin_id === value.destination_id) {
-          return new Response(
-            JSON.stringify({ error: 'Origin and destination must be different' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Verify places belong to user's school
-        const { data: places, error: placesError } = await supabase
-          .from('places')
-          .select('id')
-          .eq('school_id', profile.school_id)
-          .in('id', [value.origin_id, value.destination_id]);
-
-        if (placesError || places.length !== 2) {
-          return new Response(
-            JSON.stringify({ error: 'Invalid origin or destination' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Create ride
-        const { data, error } = await supabase
-          .from('rides')
-          .insert({
-            ...value,
-            school_id: profile.school_id,
-            driver_id: user.id
-          })
-          .select(`
-            *,
-            origin:places!rides_origin_id_fkey(id, name, address),
-            destination:places!rides_destination_id_fkey(id, name, address),
-            driver:profiles!rides_driver_id_fkey(id, name, avatar_url)
-          `)
-          .single();
-
-        if (error) {
-          console.error('Error creating ride:', error);
-          return new Response(
-            JSON.stringify({ error: 'Failed to create ride' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
+      if (rideError || !ride) {
         return new Response(
-          JSON.stringify({ data }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      case 'join': {
-        if (req.method !== 'POST') {
-          return new Response('Method not allowed', { status: 405, headers: corsHeaders });
-        }
-
-        const body = await req.json();
-        const { rideId } = body;
-        const { error: validationError, value } = joinRideSchema.validate(body);
-
-        if (validationError) {
-          return new Response(
-            JSON.stringify({ error: validationError.details[0].message }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        if (!rideId) {
-          return new Response(
-            JSON.stringify({ error: 'Ride ID is required' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Get ride details
-        const { data: ride, error: rideError } = await supabase
-          .from('rides')
-          .select('*, ride_participants(*)')
-          .eq('id', rideId)
-          .eq('school_id', profile.school_id)
-          .single();
-
-        if (rideError || !ride) {
-          return new Response(
-            JSON.stringify({ error: 'Ride not found' }),
-            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Check if user is the driver
-        if (ride.driver_id === user.id) {
-          return new Response(
-            JSON.stringify({ error: 'Cannot join your own ride' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Check if user is already a participant
-        const existingParticipant = ride.ride_participants.find(
-          (p: any) => p.user_id === user.id
-        );
-
-        if (existingParticipant) {
-          return new Response(
-            JSON.stringify({ error: 'You are already a participant in this ride' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Check if enough seats are available
-        const confirmedSeats = ride.ride_participants
-          .filter((p: any) => p.status === 'confirmed')
-          .reduce((sum: number, p: any) => sum + p.seats_requested, 0);
-
-        if (confirmedSeats + value.seats_requested > ride.seats_available) {
-          return new Response(
-            JSON.stringify({ error: 'Not enough seats available' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Join ride
-        const { data, error } = await supabase
-          .from('ride_participants')
-          .insert({
-            ride_id: rideId,
-            user_id: user.id,
-            seats_requested: value.seats_requested,
-            message: value.message,
-            status: 'pending'
-          })
-          .select()
-          .single();
-
-        if (error) {
-          console.error('Error joining ride:', error);
-          return new Response(
-            JSON.stringify({ error: 'Failed to join ride' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        return new Response(
-          JSON.stringify({ data }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      case 'join-with-code': {
-        if (req.method !== 'POST') {
-          return new Response('Method not allowed', { status: 405, headers: corsHeaders });
-        }
-
-        const body = await req.json();
-        const { shareCode, seats_requested = 1 } = body;
-
-        if (!shareCode) {
-          return new Response(
-            JSON.stringify({ error: 'Share code is required' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Find ride by share code
-        const { data: ride, error: rideError } = await supabase
-          .from('rides')
-          .select('*, ride_participants(*)')
-          .eq('share_code', shareCode)
-          .eq('school_id', profile.school_id)
-          .single();
-
-        if (rideError || !ride) {
-          return new Response(
-            JSON.stringify({ error: 'Invalid share code' }),
-            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Same validation as regular join
-        if (ride.driver_id === user.id) {
-          return new Response(
-            JSON.stringify({ error: 'Cannot join your own ride' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        const existingParticipant = ride.ride_participants.find(
-          (p: any) => p.user_id === user.id
-        );
-
-        if (existingParticipant) {
-          return new Response(
-            JSON.stringify({ error: 'You are already a participant in this ride' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        const confirmedSeats = ride.ride_participants
-          .filter((p: any) => p.status === 'confirmed')
-          .reduce((sum: number, p: any) => sum + p.seats_requested, 0);
-
-        if (confirmedSeats + seats_requested > ride.seats_available) {
-          return new Response(
-            JSON.stringify({ error: 'Not enough seats available' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Join ride
-        const { data, error } = await supabase
-          .from('ride_participants')
-          .insert({
-            ride_id: ride.id,
-            user_id: user.id,
-            seats_requested,
-            status: 'confirmed' // Auto-confirm when joining with share code
-          })
-          .select()
-          .single();
-
-        if (error) {
-          console.error('Error joining ride with code:', error);
-          return new Response(
-            JSON.stringify({ error: 'Failed to join ride' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        return new Response(
-          JSON.stringify({ data }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      case 'generate-share-code': {
-        if (req.method !== 'POST') {
-          return new Response('Method not allowed', { status: 405, headers: corsHeaders });
-        }
-
-        const body = await req.json();
-        const { rideId } = body;
-
-        if (!rideId) {
-          return new Response(
-            JSON.stringify({ error: 'Ride ID is required' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Verify user owns this ride
-        const { data: ride, error: rideError } = await supabase
-          .from('rides')
-          .select('*')
-          .eq('id', rideId)
-          .eq('driver_id', user.id)
-          .single();
-
-        if (rideError || !ride) {
-          return new Response(
-            JSON.stringify({ error: 'Ride not found or not authorized' }),
-            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Return existing share code if available
-        if (ride.share_code) {
-          return new Response(
-            JSON.stringify({ shareCode: ride.share_code }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Generate new share code using database function
-        const { data, error } = await supabase
-          .rpc('generate_share_code');
-
-        if (error) {
-          return new Response(
-            JSON.stringify({ error: 'Failed to generate share code' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Update ride with share code
-        const { error: updateError } = await supabase
-          .from('rides')
-          .update({ share_code: data })
-          .eq('id', rideId);
-
-        if (updateError) {
-          return new Response(
-            JSON.stringify({ error: 'Failed to save share code' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        return new Response(
-          JSON.stringify({ shareCode: data }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      default:
-        return new Response(
-          JSON.stringify({ error: 'Method not found' }),
+          JSON.stringify({ error: 'Ride not found' }),
           { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
+      }
+
+      if (ride.available_seats <= 0) {
+        return new Response(
+          JSON.stringify({ error: 'No available seats' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Create ride request
+      const { data: request, error: requestError } = await supabase
+        .from('ride_requests')
+        .insert({
+          ride_id: body.rideId,
+          rider_id: body.riderId,
+          status: 'pending',
+          message: body.message
+        })
+        .select(`
+          *,
+          rider:profiles!ride_requests_rider_id_fkey(first_name, last_name)
+        `)
+        .single();
+
+      if (requestError) {
+        console.error('Error creating ride request:', requestError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to create ride request' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Send notification to driver
+      const riderName = `${request.rider.first_name} ${request.rider.last_name}`;
+      await NotificationHelpers.notifyRideRequest({
+        rideId: body.rideId,
+        driverId: ride.driver_id,
+        riderId: body.riderId,
+        riderName: riderName,
+        origin: ride.origin.name,
+        destination: ride.destination.name,
+        departureTime: ride.departure_time
+      });
+
+      return new Response(
+        JSON.stringify({ request }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
+
+    // Route: POST /rides/respond - Respond to ride request (approve/reject)
+    if (method === 'POST' && urlPath.endsWith('/respond')) {
+      const body: UpdateRideStatusRequest = await req.json();
+      
+      if (!body.riderId || !body.action) {
+        return new Response(
+          JSON.stringify({ error: 'riderId and action are required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Get ride request details
+      const { data: request, error: requestError } = await supabase
+        .from('ride_requests')
+        .select(`
+          *,
+          ride:rides!ride_requests_ride_id_fkey(
+            *,
+            driver:profiles!rides_driver_id_fkey(first_name, last_name),
+            origin:places!rides_origin_place_id_fkey(name),
+            destination:places!rides_destination_place_id_fkey(name)
+          ),
+          rider:profiles!ride_requests_rider_id_fkey(first_name, last_name)
+        `)
+        .eq('ride_id', body.rideId)
+        .eq('rider_id', body.riderId)
+        .single();
+
+      if (requestError || !request) {
+        return new Response(
+          JSON.stringify({ error: 'Ride request not found' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (body.action === 'approve') {
+        // Update ride request status
+        const { error: updateError } = await supabase
+          .from('ride_requests')
+          .update({ status: 'approved' })
+          .eq('id', request.id);
+
+        if (updateError) {
+          console.error('Error approving ride request:', updateError);
+          return new Response(
+            JSON.stringify({ error: 'Failed to approve ride request' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Decrease available seats
+        const { error: seatsError } = await supabase
+          .from('rides')
+          .update({ available_seats: request.ride.available_seats - 1 })
+          .eq('id', body.rideId);
+
+        if (seatsError) {
+          console.error('Error updating available seats:', seatsError);
+        }
+
+        // Send confirmation notification to rider
+        const driverName = `${request.ride.driver.first_name} ${request.ride.driver.last_name}`;
+        await NotificationHelpers.notifyRideConfirmed({
+          rideId: body.rideId,
+          riderId: body.riderId,
+          driverId: request.ride.driver_id,
+          driverName: driverName,
+          origin: request.ride.origin.name,
+          destination: request.ride.destination.name
+        });
+
+      } else if (body.action === 'reject') {
+        // Update ride request status
+        const { error: updateError } = await supabase
+          .from('ride_requests')
+          .update({ status: 'rejected' })
+          .eq('id', request.id);
+
+        if (updateError) {
+          console.error('Error rejecting ride request:', updateError);
+          return new Response(
+            JSON.stringify({ error: 'Failed to reject ride request' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Optionally send rejection notification to rider
+        // await NotificationHelpers.notifyRideRejected(...);
+      }
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Route: POST /rides/cancel - Cancel a ride
+    if (method === 'POST' && urlPath.endsWith('/cancel')) {
+      const body: UpdateRideStatusRequest = await req.json();
+      
+      // Get ride details with all approved riders
+      const { data: ride, error: rideError } = await supabase
+        .from('rides')
+        .select(`
+          *,
+          origin:places!rides_origin_place_id_fkey(name),
+          destination:places!rides_destination_place_id_fkey(name),
+          ride_requests!inner(
+            rider_id,
+            status
+          )
+        `)
+        .eq('id', body.rideId)
+        .single();
+
+      if (rideError || !ride) {
+        return new Response(
+          JSON.stringify({ error: 'Ride not found' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Update ride status
+      const { error: updateError } = await supabase
+        .from('rides')
+        .update({ status: 'cancelled' })
+        .eq('id', body.rideId);
+
+      if (updateError) {
+        console.error('Error cancelling ride:', updateError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to cancel ride' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Get approved riders
+      const approvedRiders = ride.ride_requests
+        .filter(req => req.status === 'approved')
+        .map(req => req.rider_id);
+
+      // Send cancellation notifications
+      if (approvedRiders.length > 0) {
+        await NotificationHelpers.notifyRideCancelled({
+          rideId: body.rideId,
+          riderIds: approvedRiders,
+          origin: ride.origin.name,
+          destination: ride.destination.name
+        });
+      }
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Route: GET /rides/search - Search for available rides
+    if (method === 'GET' && urlPath.endsWith('/search')) {
+      const searchParams = new URLSearchParams(url.split('?')[1] || '');
+      const originLat = parseFloat(searchParams.get('originLat') || '0');
+      const originLng = parseFloat(searchParams.get('originLng') || '0');
+      const destLat = parseFloat(searchParams.get('destLat') || '0');
+      const destLng = parseFloat(searchParams.get('destLng') || '0');
+      const radius = parseFloat(searchParams.get('radius') || '10'); // km
+      const departureDate = searchParams.get('departureDate');
+
+      // Build query for nearby rides
+      let query = supabase
+        .from('rides')
+        .select(`
+          *,
+          driver:profiles!rides_driver_id_fkey(id, first_name, last_name, avatar_url),
+          origin:places!rides_origin_place_id_fkey(*),
+          destination:places!rides_destination_place_id_fkey(*)
+        `)
+        .eq('status', 'active')
+        .gt('available_seats', 0);
+
+      if (departureDate) {
+        const startDate = new Date(departureDate);
+        const endDate = new Date(startDate);
+        endDate.setHours(23, 59, 59);
+        
+        query = query
+          .gte('departure_time', startDate.toISOString())
+          .lte('departure_time', endDate.toISOString());
+      }
+
+      const { data: rides, error } = await query;
+
+      if (error) {
+        console.error('Error searching rides:', error);
+        return new Response(
+          JSON.stringify({ error: 'Failed to search rides' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Filter by distance (basic implementation - could be improved with PostGIS)
+      const filteredRides = rides?.filter(ride => {
+        const originDistance = this.calculateDistance(
+          originLat, originLng, 
+          ride.origin.latitude, ride.origin.longitude
+        );
+        const destDistance = this.calculateDistance(
+          destLat, destLng, 
+          ride.destination.latitude, ride.destination.longitude
+        );
+        
+        return originDistance <= radius && destDistance <= radius;
+      }) || [];
+
+      return new Response(
+        JSON.stringify({ rides: filteredRides }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Default 404 response
+    return new Response(
+      JSON.stringify({ error: 'Not found' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
 
   } catch (error) {
     console.error('Rides function error:', error);
@@ -422,3 +391,16 @@ serve(async (req) => {
     );
   }
 });
+
+// Helper function to calculate distance between two points (Haversine formula)
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // Radius of the Earth in kilometers
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
