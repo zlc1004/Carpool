@@ -15,9 +15,7 @@ start: ## Start all services
 	@echo "🚀 Starting CarpSchool Supabase Server..."
 	./start-dev.sh
 
-start-codepush: ## Start all services including CodePush
-	@echo "🚀 Starting CarpSchool Supabase Server with CodePush..."
-	./start-dev.sh --with-codepush
+
 
 start-proxy: ## Start all services including proxy
 	@echo "🚀 Starting CarpSchool Supabase Server with proxy..."

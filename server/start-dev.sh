@@ -29,10 +29,7 @@ mkdir -p openmaptilesdata/data
 mkdir -p openmaptilesdata/style
 mkdir -p osrmdata/data
 mkdir -p pgdataNominatimInternal
-mkdir -p codepush_storage
-mkdir -p codepush_tmp
-mkdir -p codepush_mysql_data
-mkdir -p codepush_redis_data
+
 
 # Check if Kong configuration exists
 if [ ! -f kong.yml ]; then
@@ -104,20 +101,29 @@ wait_for_service "supabase-auth" 8
 echo "🎨 Starting Supabase Studio..."
 docker compose up -d supabase-studio
 
-# Start map services (if data exists)
+# Start map services (if data exists) - now in separate services
 if [ -d "openmaptilesdata/data" ] && [ "$(ls -A openmaptilesdata/data)" ]; then
-    echo "🗺️  Starting map services..."
-    docker compose up -d tileserver-gl nominatim osrm
+    echo "🗺️  Starting map services from ./services..."
+
+    # Create external network if it doesn't exist
+    docker network create carpool_network 2>/dev/null || true
+
+    # Start each map service
+    echo "   📍 Starting Nominatim..."
+    (cd ../services/nominatim && docker compose up -d)
+
+    echo "   🗺️  Starting Tileserver..."
+    (cd ../services/tileserver-gl && docker compose up -d)
+
+    echo "   🛣️  Starting OSRM..."
+    (cd ../services/osrm && docker compose up -d)
 else
-    echo "⚠️  Map data not found. Skipping tileserver-gl, nominatim, and osrm."
+    echo "⚠️  Map data not found. Skipping external map services."
     echo "   To add map services, please provide map data in openmaptilesdata/ and osrmdata/ directories."
+    echo "   Then start services manually: cd ../services/[service] && docker compose up -d"
 fi
 
-# Start CodePush services (optional)
-if [ "$1" = "--with-codepush" ]; then
-    echo "📱 Starting CodePush services..."
-    docker compose --profile codepush up -d
-fi
+
 
 # Start service proxy (optional)
 if [ "$1" = "--with-proxy" ]; then
@@ -144,12 +150,7 @@ if [ -d "openmaptilesdata/data" ] && [ "$(ls -A openmaptilesdata/data)" ]; then
     echo ""
 fi
 
-if [ "$1" = "--with-codepush" ]; then
-    echo "📱 CodePush Services (if enabled):"
-    echo "   📲 CodePush API:       http://localhost:40064"
-    echo "   ⚙️  CodePush Admin:     http://localhost:40065"
-    echo ""
-fi
+
 
 echo "🔧 Management Commands:"
 echo "   View logs:             docker compose logs -f [service_name]"
