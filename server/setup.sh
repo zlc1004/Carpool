@@ -61,11 +61,7 @@ log_success "Prerequisites check completed"
 # Setup directories
 log_info "Setting up directories..."
 
-mkdir -p db
 mkdir -p storage
-mkdir -p ssl
-mkdir -p monitoring/prometheus
-mkdir -p pooler
 
 # Create SQL files that Docker expects
 log_info "Creating database initialization files..."
