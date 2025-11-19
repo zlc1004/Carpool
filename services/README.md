@@ -2,25 +2,24 @@
 
 This directory contains the map and geocoding services that support the CarpSchool application. These services are separated from the main Supabase server for better modularity and scalability.
 
+All services are defined in a single `docker-compose.yml` file for simplified management.
+
 ## Services
 
 ### 📍 Nominatim
 - **Purpose**: Geocoding service (converts addresses to coordinates and vice versa)
 - **Container**: `nominatim`
 - **Internal Port**: 8080
-- **Location**: `./services/nominatim/`
 
 ### 🗺️ Tileserver-GL
 - **Purpose**: Map tile server for rendering interactive maps
 - **Container**: `tileserver-gl`
 - **Internal Port**: 8082
-- **Location**: `./services/tileserver-gl/`
 
 ### 🛣️ OSRM (Open Source Routing Machine)
 - **Purpose**: Route optimization and navigation
 - **Container**: `osrm`
 - **Internal Port**: 8083
-- **Location**: `./services/osrm/`
 
 ## Usage
 
@@ -30,29 +29,47 @@ From the server directory:
 ./start-dev.sh
 ```
 
-### Starting Individual Services
+Or directly from the services directory:
 ```bash
-# Start Nominatim
-cd services/nominatim
-docker compose up -d
-
-# Start Tileserver
-cd services/tileserver-gl
-docker compose up -d
-
-# Start OSRM
-cd services/osrm
+cd services
 docker compose up -d
 ```
 
-### Stopping Services
+### Using the Management Script
 ```bash
-# Stop individual service
-cd services/[service-name]
-docker compose down
+cd services
+
+# Start all services
+./manage-services.sh start
+
+# Check status
+./manage-services.sh status
+
+# View logs for specific service
+./manage-services.sh logs nominatim
 
 # Stop all services
-docker stop nominatim tileserver-gl osrm
+./manage-services.sh stop
+```
+
+### Individual Service Control
+```bash
+cd services
+
+# Start specific service
+docker compose up -d nominatim
+
+# View logs for specific service
+docker compose logs -f tileserver-gl
+
+# Stop specific service
+docker compose stop osrm
+```
+
+### Stopping All Services
+```bash
+cd services
+docker compose down
 ```
 
 ## Data Requirements
@@ -79,7 +96,7 @@ server/
 All services connect to the external `carpool_network` Docker network, allowing communication with the main Supabase server and each other.
 
 ## Configuration
-Each service can be configured by editing its respective `docker-compose.yml` file:
+All services can be configured by editing the main `docker-compose.yml` file in this directory:
 - Environment variables
 - Volume mounts
 - Resource limits
@@ -88,7 +105,7 @@ Each service can be configured by editing its respective `docker-compose.yml` fi
 ## Access Through Proxy
 When the service-proxy is enabled (via `--with-proxy` flag), these services are accessible externally:
 - **Nominatim**: http://localhost:40060
-- **Tileserver**: http://localhost:40061  
+- **Tileserver**: http://localhost:40061
 - **OSRM**: http://localhost:40062
 
 Otherwise, they communicate internally via Docker DNS using their container names.
