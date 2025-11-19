@@ -28,8 +28,7 @@ CREATE TABLE schools (
 CREATE TABLE profiles (
     id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
     school_id UUID REFERENCES schools(id) ON DELETE SET NULL,
-    first_name TEXT NOT NULL,
-    last_name TEXT NOT NULL,
+    name TEXT NOT NULL,
     display_name TEXT,
     phone TEXT,
     bio TEXT,
@@ -235,11 +234,11 @@ CREATE TRIGGER update_rides_updated_at BEFORE UPDATE ON rides
 CREATE OR REPLACE FUNCTION update_ride_seats_taken()
 RETURNS TRIGGER AS $$
 BEGIN
-    UPDATE rides 
+    UPDATE rides
     SET seats_taken = (
         SELECT COALESCE(SUM(seats_requested), 0)
-        FROM ride_participants 
-        WHERE ride_id = NEW.ride_id 
+        FROM ride_participants
+        WHERE ride_id = NEW.ride_id
         AND status = 'confirmed'
     )
     WHERE id = NEW.ride_id;

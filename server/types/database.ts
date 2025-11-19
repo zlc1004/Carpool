@@ -251,8 +251,7 @@ export type Database = {
         Row: {
           id: string
           school_id: string | null
-          first_name: string
-          last_name: string
+          name: string
           display_name: string | null
           phone: string | null
           bio: string | null
@@ -272,8 +271,7 @@ export type Database = {
         Insert: {
           id: string
           school_id?: string | null
-          first_name: string
-          last_name: string
+          name: string
           display_name?: string | null
           phone?: string | null
           bio?: string | null
@@ -293,8 +291,7 @@ export type Database = {
         Update: {
           id?: string
           school_id?: string | null
-          first_name?: string
-          last_name?: string
+          name?: string
           display_name?: string | null
           phone?: string | null
           bio?: string | null

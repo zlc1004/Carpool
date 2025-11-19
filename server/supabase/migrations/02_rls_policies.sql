@@ -36,14 +36,17 @@ CREATE POLICY "Users can view their school" ON schools
         id = get_user_school_id() OR is_admin()
     );
 
+CREATE POLICY "Public can view active schools for signup" ON schools
+    FOR SELECT TO anon USING (active = true);
+
 CREATE POLICY "System admins can manage schools" ON schools
     FOR ALL USING (is_system_admin());
 
 -- Profiles policies
 CREATE POLICY "Users can view profiles in their school" ON profiles
     FOR SELECT USING (
-        school_id = get_user_school_id() OR 
-        id = auth.uid() OR 
+        school_id = get_user_school_id() OR
+        id = auth.uid() OR
         is_admin()
     );
 
@@ -53,7 +56,7 @@ CREATE POLICY "Users can update their own profile" ON profiles
 CREATE POLICY "Admins can update profiles in their school" ON profiles
     FOR UPDATE USING (
         is_admin() AND (
-            school_id = get_user_school_id() OR 
+            school_id = get_user_school_id() OR
             is_system_admin()
         )
     );
@@ -64,7 +67,7 @@ CREATE POLICY "Users can insert their own profile" ON profiles
 -- Places policies
 CREATE POLICY "Users can view places in their school" ON places
     FOR SELECT USING (
-        school_id = get_user_school_id() OR 
+        school_id = get_user_school_id() OR
         is_admin()
     );
 
@@ -76,7 +79,7 @@ CREATE POLICY "Users can create places in their school" ON places
 
 CREATE POLICY "Users can update their own places" ON places
     FOR UPDATE USING (
-        created_by = auth.uid() OR 
+        created_by = auth.uid() OR
         is_admin()
     );
 
@@ -86,7 +89,7 @@ CREATE POLICY "Admins can manage places" ON places
 -- Rides policies
 CREATE POLICY "Users can view rides in their school" ON rides
     FOR SELECT USING (
-        school_id = get_user_school_id() OR 
+        school_id = get_user_school_id() OR
         is_admin()
     );
 
@@ -98,13 +101,13 @@ CREATE POLICY "Users can create rides in their school" ON rides
 
 CREATE POLICY "Drivers can update their own rides" ON rides
     FOR UPDATE USING (
-        driver_id = auth.uid() OR 
+        driver_id = auth.uid() OR
         is_admin()
     );
 
 CREATE POLICY "Drivers can delete their own rides" ON rides
     FOR DELETE USING (
-        driver_id = auth.uid() OR 
+        driver_id = auth.uid() OR
         is_admin()
     );
 
@@ -144,8 +147,8 @@ CREATE POLICY "No direct client access to captcha" ON captcha_sessions
 CREATE POLICY "Users can view messages for rides they're part of" ON chat_messages
     FOR SELECT USING (
         ride_id IN (
-            SELECT r.id FROM rides r 
-            LEFT JOIN ride_participants rp ON r.id = rp.ride_id 
+            SELECT r.id FROM rides r
+            LEFT JOIN ride_participants rp ON r.id = rp.ride_id
             WHERE r.driver_id = auth.uid() OR rp.user_id = auth.uid()
         ) OR
         is_admin()
@@ -155,8 +158,8 @@ CREATE POLICY "Users can send messages to rides they're part of" ON chat_message
     FOR INSERT WITH CHECK (
         sender_id = auth.uid() AND
         ride_id IN (
-            SELECT r.id FROM rides r 
-            LEFT JOIN ride_participants rp ON r.id = rp.ride_id 
+            SELECT r.id FROM rides r
+            LEFT JOIN ride_participants rp ON r.id = rp.ride_id
             WHERE r.driver_id = auth.uid() OR rp.user_id = auth.uid()
         )
     );
@@ -181,7 +184,7 @@ CREATE POLICY "Users can manage their own subscriptions" ON push_subscriptions
 -- Image uploads policies
 CREATE POLICY "Users can view their own images" ON image_uploads
     FOR SELECT USING (
-        user_id = auth.uid() OR 
+        user_id = auth.uid() OR
         is_admin()
     );
 
@@ -199,6 +202,10 @@ CREATE POLICY "Only admins can access system settings" ON system_settings
 CREATE POLICY "No direct client access to rate limits" ON rate_limits
     FOR ALL USING (false);
 
+-- Grant necessary permissions for auth service
+GRANT USAGE ON SCHEMA public TO authenticator;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO authenticator;
+
 -- Functions for server-side operations
 
 -- Function to create a new user profile after signup
@@ -211,34 +218,32 @@ DECLARE
 BEGIN
     -- Get the user's email
     user_email := NEW.email;
-    
+
     IF user_email IS NOT NULL THEN
         -- Extract domain from email
         email_domain := split_part(user_email, '@', 2);
-        
+
         -- Find school by domain
-        SELECT * INTO school_record 
-        FROM schools 
+        SELECT * INTO school_record
+        FROM schools
         WHERE domain = email_domain AND active = true;
-        
+
         -- Create profile
         INSERT INTO public.profiles (
-            id, 
+            id,
             school_id,
-            first_name, 
-            last_name,
+            name,
             created_at,
             updated_at
         ) VALUES (
             NEW.id,
             school_record.id,
-            COALESCE(NEW.raw_user_meta_data->>'first_name', 'User'),
-            COALESCE(NEW.raw_user_meta_data->>'last_name', 'Name'),
+            COALESCE(NEW.raw_user_meta_data->>'name', COALESCE(NEW.raw_user_meta_data->>'first_name', 'User') || ' ' || COALESCE(NEW.raw_user_meta_data->>'last_name', 'Name')),
             NOW(),
             NOW()
         );
     END IF;
-    
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -265,10 +270,10 @@ BEGIN
             END IF;
             result := result || substr(chars, floor(random() * length(chars) + 1)::int, 1);
         END LOOP;
-        
+
         SELECT EXISTS(SELECT 1 FROM rides WHERE share_code = result) INTO code_exists;
     END LOOP;
-    
+
     RETURN result;
 END;
 $$ LANGUAGE plpgsql;
