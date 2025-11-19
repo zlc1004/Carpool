@@ -1,25 +1,13 @@
 # Data directories (similar to main branch)
-postgres_data/
-postgres_init/
-storage_data/
-functions_cache/
-redis_data/
-prometheus_data/
-grafana_data/
-mongo_data/
-codepush_mysql_data/
-codepush_redis_data/
-codepush_storage/
-codepush_tmp/
-pgdataNominatimInternal/
-openmaptilesdata/
-osrmdata/
+storage/
+db/
 
 # Backup files
 backups/
 
 # Log files
-logs/
+logs/*
+!logs/vector.yml
 *.log
 
 # Environment files
