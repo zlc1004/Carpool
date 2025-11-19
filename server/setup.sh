@@ -65,13 +65,6 @@ mkdir -p postgres_data
 mkdir -p postgres_init
 mkdir -p storage_data
 mkdir -p functions_cache
-mkdir -p openmaptilesdata/{data,style,build}
-mkdir -p osrmdata/data
-mkdir -p pgdataNominatimInternal
-mkdir -p codepush_storage
-mkdir -p codepush_tmp
-mkdir -p codepush_mysql_data
-mkdir -p codepush_redis_data
 mkdir -p redis_data
 mkdir -p prometheus_data
 mkdir -p grafana_data

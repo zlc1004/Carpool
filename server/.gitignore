@@ -67,3 +67,7 @@ monitoring/data/
 # Build artifacts
 build/
 dist/
+
+
+volumes
+dev

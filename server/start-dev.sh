@@ -25,10 +25,6 @@ mkdir -p postgres_data
 mkdir -p postgres_init
 mkdir -p storage_data
 mkdir -p functions_cache
-mkdir -p openmaptilesdata/data
-mkdir -p openmaptilesdata/style
-mkdir -p osrmdata/data
-mkdir -p pgdataNominatimInternal
 
 
 # Check if Kong configuration exists
