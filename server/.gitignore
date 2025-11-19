@@ -1,0 +1,68 @@
+# Data directories (similar to main branch)
+postgres_data/
+storage_data/
+functions_cache/
+redis_data/
+prometheus_data/
+grafana_data/
+mongo_data/
+codepush_mysql_data/
+codepush_redis_data/
+codepush_storage/
+codepush_tmp/
+pgdataNominatimInternal/
+openmaptilesdata/
+osrmdata/
+
+# Backup files
+backups/
+
+# Log files
+logs/
+*.log
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# SSL certificates
+ssl/*.key
+ssl/*.crt
+ssl/*.pem
+
+# Cache and temp files
+.cache/
+tmp/
+temp/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Docker files
+.docker/
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Monitoring data
+monitoring/data/
+
+# Build artifacts
+build/
+dist/
