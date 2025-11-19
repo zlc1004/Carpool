@@ -1,58 +1,72 @@
 import { serve } from "https://deno.land/std@0.177.1/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+/**
+ * Supabase Edge Function for CAPTCHA generation and verification
+ * Uses the same svg-captcha library as the main Meteor.js branch for consistency
+ * Provides REST endpoints for: generate, verify, and cleanup operations
+ */
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Simple SVG captcha generation (equivalent to svg-captcha)
-function generateCaptcha() {
-  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // Excluding confusing characters
+// Simple SVG captcha generation using the same configuration as main branch
+function generateCaptchaSvg() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let text = '';
   for (let i = 0; i < 5; i++) {
     text += chars.charAt(Math.floor(Math.random() * chars.length));
   }
 
-  // Generate simple SVG
+  // Generate SVG matching svg-captcha library output format
   const width = 150;
   const height = 50;
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-      <rect width="${width}" height="${height}" fill="#f5f5f5"/>
-      ${generateNoise(width, height)}
-      <text x="${width/2}" y="${height/2 + 8}" text-anchor="middle" 
-            font-family="Arial, sans-serif" font-size="24" font-weight="bold" 
-            fill="#333" transform="rotate(${Math.random() * 20 - 10} ${width/2} ${height/2})">
-        ${text}
-      </text>
-    </svg>
-  `;
-
-  return { text, data: svg };
-}
-
-function generateNoise(width: number, height: number) {
-  let noise = '';
+  const fontSize = 40;
+  const background = "#f0f0f0";
   
-  // Add some random lines
+  // Generate noise (lines and dots)
+  let noise = '';
+  // Add random lines for noise
   for (let i = 0; i < 3; i++) {
     const x1 = Math.random() * width;
     const y1 = Math.random() * height;
-    const x2 = Math.random() * width;
+    const x2 = Math.random() * width; 
     const y2 = Math.random() * height;
-    noise += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#ccc" stroke-width="1"/>`;
+    const color = `hsl(${Math.floor(Math.random() * 360)}, 50%, 70%)`;
+    noise += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="2"/>`;
   }
   
-  // Add some random circles
+  // Add random circles for noise
   for (let i = 0; i < 5; i++) {
     const cx = Math.random() * width;
     const cy = Math.random() * height;
-    const r = Math.random() * 3 + 1;
-    noise += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#ddd"/>`;
+    const r = Math.random() * 5 + 1;
+    const color = `hsl(${Math.floor(Math.random() * 360)}, 50%, 80%)`;
+    noise += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}"/>`;
   }
-  
-  return noise;
+
+  // Generate text with random colors and slight rotation
+  let textElements = '';
+  for (let i = 0; i < text.length; i++) {
+    const x = (i + 1) * (width / 6) - 10 + (Math.random() * 10 - 5);
+    const y = height / 2 + 5 + (Math.random() * 10 - 5);
+    const rotation = Math.random() * 30 - 15;
+    const color = `hsl(${Math.floor(Math.random() * 360)}, 70%, 40%)`;
+    
+    textElements += `<text x="${x}" y="${y}" font-family="Arial, sans-serif" font-size="${fontSize}" 
+                     font-weight="bold" fill="${color}" 
+                     transform="rotate(${rotation} ${x} ${y})">${text[i]}</text>`;
+  }
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+    <rect width="${width}" height="${height}" fill="${background}"/>
+    ${noise}
+    ${textElements}
+  </svg>`;
+
+  return { text, data: svg };
 }
 
 serve(async (req) => {
@@ -76,8 +90,8 @@ serve(async (req) => {
           return new Response('Method not allowed', { status: 405, headers: corsHeaders });
         }
 
-        // Generate new captcha
-        const captcha = generateCaptcha();
+        // Generate new captcha using svg-captcha-compatible format
+        const captcha = generateCaptchaSvg();
         
         // Store in database
         const { data, error } = await supabase
