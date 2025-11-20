@@ -23,7 +23,8 @@ export default {
         NSLocationWhenInUseUsageDescription: "This app uses location to find nearby carpool routes and track rides for safety.",
         NSLocationAlwaysAndWhenInUseUsageDescription: "This app uses location to find nearby carpool routes and track rides for safety.",
         NSCameraUsageDescription: "This app uses the camera to allow you to take photos for your profile and ride documentation.",
-        NSPhotoLibraryUsageDescription: "This app accesses your photo library to let you choose profile pictures and share ride photos."
+        NSPhotoLibraryUsageDescription: "This app accesses your photo library to let you choose profile pictures and share ride photos.",
+        ITSAppUsesNonExemptEncryption: false
       }
     },
     android: {
@@ -53,7 +54,7 @@ export default {
       supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOuoJuXO0IFR-NtX4h4UmpYeL4k-0JM5UMNo",
       eas: {
         // This will be set automatically by EAS when project is created
-        projectId: process.env.EAS_PROJECT_ID
+        projectId:  "485ceb80-9542-42b7-a105-70a710360e84"
       }
     }
   }
