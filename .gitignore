@@ -7,3 +7,5 @@ build
 __pycache__
 .conda
 *.pyc
+client/mobile/yarn.lock
+build-*.tar.gz
