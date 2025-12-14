@@ -61,3 +61,10 @@ volumes
 dev
 
 monitoring/
+postgres_data
+functions_cache
+openmaptilesdata
+pgdataNominatimInternal
+postgres_init
+storage_data
+osrmdata
