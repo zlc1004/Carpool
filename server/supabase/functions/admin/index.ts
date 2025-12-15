@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.177.1/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import Joi from "https://esm.sh/joi@17.11.0";
 
 const corsHeaders = {
@@ -48,7 +48,7 @@ async function checkAdminPermission(supabase: any, userId: string, requiredRole:
   return { authorized, profile };
 }
 
-serve(async (req) => {
+export default async function(req: Request) {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });

@@ -1,4 +1,4 @@
-import { Expo, ExpoPushMessage, ExpoPushTicket, ExpoPushReceipt } from 'expo-server-sdk';
+import { Expo, ExpoPushMessage, ExpoPushTicket, ExpoPushReceipt } from 'https://esm.sh/expo-server-sdk@3.7.0';
 
 export interface ExpoNotificationData {
   to: string | string[];
