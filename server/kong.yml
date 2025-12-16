@@ -4,10 +4,10 @@ _transform: true
 consumers:
   - username: anon
     keyauth_credentials:
-      - key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNhcnBvb2wiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTcwNDE2NzY4MCwiZXhwIjoyMDE5NzQzNjgwfQ.example_anon_key_change_in_production
+      - key: ${SUPABASE_ANON_KEY}
   - username: service_role
     keyauth_credentials:
-      - key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNhcnBvb2wiLCJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNzA0MTY3NjgwLCJleHAiOjIwMTk3NDM2ODB9.example_service_role_key_change_in_production
+      - key: ${SUPABASE_SERVICE_KEY}
 
 acls:
   - consumer: anon
