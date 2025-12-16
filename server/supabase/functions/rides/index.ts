@@ -55,7 +55,15 @@ export default async function(req: Request) {
     // Route: POST /rides/create - Create a new ride
     if (method === 'POST' && urlPath.endsWith('/create')) {
       const body: CreateRideRequest = await req.json();
-      
+
+      // Validate required fields
+      if (!body.origin?.id || !body.destination?.id || !body.driverId) {
+        return new Response(
+          JSON.stringify({ error: 'Missing required fields: origin, destination, and driverId are required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       // Create the ride
       const { data: ride, error: rideError } = await supabase
         .from('rides')
@@ -90,7 +98,7 @@ export default async function(req: Request) {
     // Route: POST /rides/join - Join a ride (create ride request)
     if (method === 'POST' && urlPath.endsWith('/join')) {
       const body: JoinRideRequest = await req.json();
-      
+
       // Check if ride exists and has available seats
       const { data: ride, error: rideError } = await supabase
         .from('rides')
@@ -161,7 +169,7 @@ export default async function(req: Request) {
     // Route: POST /rides/respond - Respond to ride request (approve/reject)
     if (method === 'POST' && urlPath.endsWith('/respond')) {
       const body: UpdateRideStatusRequest = await req.json();
-      
+
       if (!body.riderId || !body.action) {
         return new Response(
           JSON.stringify({ error: 'riderId and action are required' }),
@@ -257,7 +265,7 @@ export default async function(req: Request) {
     // Route: POST /rides/cancel - Cancel a ride
     if (method === 'POST' && urlPath.endsWith('/cancel')) {
       const body: UpdateRideStatusRequest = await req.json();
-      
+
       // Get ride details with all approved riders
       const { data: ride, error: rideError } = await supabase
         .from('rides')
@@ -341,7 +349,7 @@ export default async function(req: Request) {
         const startDate = new Date(departureDate);
         const endDate = new Date(startDate);
         endDate.setHours(23, 59, 59);
-        
+
         query = query
           .gte('departure_time', startDate.toISOString())
           .lte('departure_time', endDate.toISOString());
@@ -360,14 +368,14 @@ export default async function(req: Request) {
       // Filter by distance (basic implementation - could be improved with PostGIS)
       const filteredRides = rides?.filter(ride => {
         const originDistance = this.calculateDistance(
-          originLat, originLng, 
+          originLat, originLng,
           ride.origin.latitude, ride.origin.longitude
         );
         const destDistance = this.calculateDistance(
-          destLat, destLng, 
+          destLat, destLng,
           ride.destination.latitude, ride.destination.longitude
         );
-        
+
         return originDistance <= radius && destDistance <= radius;
       }) || [];
 
@@ -390,16 +398,16 @@ export default async function(req: Request) {
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
-});
+}
 
 // Helper function to calculate distance between two points (Haversine formula)
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371; // Radius of the Earth in kilometers
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
+  const a =
     Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
     Math.sin(dLon/2) * Math.sin(dLon/2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   return R * c;

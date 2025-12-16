@@ -73,7 +73,7 @@ export default async function(req: Request) {
 
     const url = new URL(req.url);
     const method = url.pathname.split('/').pop();
-    
+
     switch (method) {
       case 'upload': {
         if (req.method !== 'POST') {
@@ -101,7 +101,7 @@ export default async function(req: Request) {
 
         const extension = allowedMimeTypes[file.type as keyof typeof allowedMimeTypes];
         const fileName = generateFileName(user.id, purpose, extension);
-        
+
         // Convert File to ArrayBuffer
         const fileBuffer = await file.arrayBuffer();
         const uint8Array = new Uint8Array(fileBuffer);
@@ -140,7 +140,7 @@ export default async function(req: Request) {
           console.error('Error recording upload in database:', dbError);
           // Try to clean up uploaded file
           await supabase.storage.from('uploads').remove([uploadData.path]);
-          
+
           return new Response(
             JSON.stringify({ error: 'Failed to record upload' }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -153,7 +153,7 @@ export default async function(req: Request) {
           .getPublicUrl(uploadData.path);
 
         return new Response(
-          JSON.stringify({ 
+          JSON.stringify({
             data: {
               ...dbRecord,
               public_url: publicURL.publicUrl
@@ -329,4 +329,4 @@ export default async function(req: Request) {
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
-});
+}

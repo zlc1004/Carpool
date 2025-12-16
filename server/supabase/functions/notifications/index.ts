@@ -79,7 +79,7 @@ async function sendExpoPushNotifications(
 
     // Send notifications
     const result = await expoPushService.sendPushNotifications(expoNotifications);
-    
+
     if (!result.success) {
       return { success: false, error: result.error };
     }
@@ -106,7 +106,7 @@ async function sendExpoPushNotifications(
     // Check for invalid tokens and clean them up
     if (result.tickets) {
       const invalidTokens: string[] = [];
-      
+
       result.tickets.forEach((ticket, index) => {
         if (ticket.status === 'error' && ticket.details?.error === 'DeviceNotRegistered') {
           const tokenIndex = index % tokens.length;
@@ -141,7 +141,7 @@ export default async function(req: Request) {
     // Route: POST /notifications/send - Send notifications
     if (method === 'POST' && urlPath.endsWith('/send')) {
       const body: NotificationRequest = await req.json();
-      
+
       // Determine recipients
       let recipients: string[] = [];
       if (body.userId) {
@@ -159,9 +159,9 @@ export default async function(req: Request) {
       const result = await sendExpoPushNotifications(recipients, {
         title: body.title,
         body: body.body,
-        data: { 
+        data: {
           type: body.type,
-          ...body.data 
+          ...body.data
         },
         sound: body.sound,
         badge: body.badge,
@@ -170,7 +170,7 @@ export default async function(req: Request) {
 
       return new Response(
         JSON.stringify(result),
-        { 
+        {
           status: result.success ? 200 : 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
@@ -180,7 +180,7 @@ export default async function(req: Request) {
     // Route: POST /notifications/subscribe - Manage push subscriptions
     if (method === 'POST' && urlPath.endsWith('/subscribe')) {
       const body: SubscribeRequest = await req.json();
-      
+
       if (!expoPushService.isValidExpoPushToken(body.expoPushToken)) {
         return new Response(
           JSON.stringify({ error: 'Invalid Expo push token format' }),
@@ -238,7 +238,7 @@ export default async function(req: Request) {
     // Route: GET /notifications/:userId - Get user notifications
     if (method === 'GET' && urlPath.match(/\/notifications\/[^\/]+$/)) {
       const userId = urlPath.split('/').pop();
-      
+
       const { data: notifications, error } = await supabase
         .from('notifications')
         .select('*')
@@ -263,7 +263,7 @@ export default async function(req: Request) {
     // Route: POST /notifications/mark-read - Mark notifications as read
     if (method === 'POST' && urlPath.endsWith('/mark-read')) {
       const { userId, notificationIds } = await req.json();
-      
+
       const { error } = await supabase
         .from('notifications')
         .update({ read: true })
@@ -297,4 +297,4 @@ export default async function(req: Request) {
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
-});
+}

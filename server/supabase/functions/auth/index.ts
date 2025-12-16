@@ -32,38 +32,57 @@ export default async function(req: Request) {
   }
 
   try {
+    const url = new URL(req.url);
+    const method = url.pathname.split('/').pop();
+
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    // Get auth header for all requests
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Missing Authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+
+    // For get-profile, check auth first
+    if (method === 'get-profile') {
+      if (!authHeader) {
+        return new Response(
+          JSON.stringify({ error: 'Missing Authorization header' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
-    // Get user from JWT token
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    );
+    // For other methods that need auth, get user
+    let user = null;
+    if (authHeader) {
+      try {
+        // Get user from JWT token
+        const { data: userData, error: authError } = await supabase.auth.getUser(
+          authHeader.replace('Bearer ', '')
+        );
 
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid or expired token' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+        if (!authError && userData.user) {
+          user = userData.user;
+        }
+        // Don't return auth errors here - let individual methods handle auth requirements
+      } catch {
+        // Ignore auth errors for now, let methods handle validation first
+      }
     }
-
-    const url = new URL(req.url);
-    const method = url.pathname.split('/').pop();
 
     switch (method) {
       case 'send-verification-email': {
         if (req.method !== 'POST') {
           return new Response('Method not allowed', { status: 405, headers: corsHeaders });
+        }
+
+        // Ensure user is authenticated for this method
+        if (!user) {
+          return new Response(
+            JSON.stringify({ error: 'Authentication required' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
         }
 
         const body = await req.json();
@@ -128,13 +147,31 @@ export default async function(req: Request) {
           return new Response('Method not allowed', { status: 405, headers: corsHeaders });
         }
 
-        const body = await req.json();
+        // First validate the request body structure
+        let body;
+        try {
+          body = await req.json();
+        } catch {
+          return new Response(
+            JSON.stringify({ error: 'Invalid JSON in request body' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
         const { error: validationError, value } = updateProfileSchema.validate(body);
 
         if (validationError) {
           return new Response(
             JSON.stringify({ error: validationError.details[0].message }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Then check authentication after validation passes
+        if (!user) {
+          return new Response(
+            JSON.stringify({ error: 'Authentication required' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
@@ -229,4 +266,4 @@ export default async function(req: Request) {
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
-});
+}

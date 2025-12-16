@@ -38,7 +38,7 @@ async function geocodeAddress(address: string): Promise<{ latitude?: number, lon
     // This would integrate with a real geocoding service (Google Maps, MapBox, etc.)
     // For now, return mock coordinates
     console.log('Would geocode address:', address);
-    
+
     // Return some mock coordinates for common test addresses
     const mockCoordinates: { [key: string]: { latitude: number, longitude: number } } = {
       'sample': { latitude: 37.7749, longitude: -122.4194 },
@@ -108,7 +108,7 @@ export default async function(req: Request) {
 
     const url = new URL(req.url);
     const method = url.pathname.split('/').pop();
-    
+
     switch (method) {
       case 'list': {
         if (req.method !== 'GET') {
@@ -159,7 +159,7 @@ export default async function(req: Request) {
 
         const body = await req.json();
         const { error: validationError, value } = createPlaceSchema.validate(body);
-        
+
         if (validationError) {
           return new Response(
             JSON.stringify({ error: validationError.details[0].message }),
@@ -207,7 +207,7 @@ export default async function(req: Request) {
         const body = await req.json();
         const { placeId } = body;
         const { error: validationError, value } = updatePlaceSchema.validate(body);
-        
+
         if (validationError) {
           return new Response(
             JSON.stringify({ error: validationError.details[0].message }),
@@ -336,7 +336,7 @@ export default async function(req: Request) {
         // Increment usage count
         const { data, error } = await supabase
           .from('places')
-          .update({ 
+          .update({
             usage_count: supabase.sql`usage_count + 1`,
             updated_at: new Date().toISOString()
           })
@@ -384,7 +384,7 @@ export default async function(req: Request) {
 
         const { data, error } = await supabase
           .from('places')
-          .update({ 
+          .update({
             verified,
             updated_at: new Date().toISOString()
           })
@@ -421,4 +421,4 @@ export default async function(req: Request) {
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
-});
+}

@@ -1,21 +1,31 @@
 import { serve } from "https://deno.land/std@0.177.1/http/server.ts";
 
+// Static imports instead of dynamic imports to fix compilation
+import authHandler from '../auth/index.ts';
+import captchaHandler from '../captcha/index.ts';
+import ridesHandler from '../rides/index.ts';
+import chatHandler from '../chat/index.ts';
+import adminHandler from '../admin/index.ts';
+import notificationsHandler from '../notifications/index.ts';
+import placesHandler from '../places/index.ts';
+import uploadsHandler from '../uploads/index.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
 };
 
-// Function routing map
+// Function routing map with static handlers
 const functionRoutes = {
-  '/auth': () => import('../auth/index.ts'),
-  '/captcha': () => import('../captcha/index.ts'),
-  '/rides': () => import('../rides/index.ts'),
-  '/chat': () => import('../chat/index.ts'),
-  '/admin': () => import('../admin/index.ts'),
-  '/notifications': () => import('../notifications/index.ts'),
-  '/places': () => import('../places/index.ts'),
-  '/uploads': () => import('../uploads/index.ts'),
+  '/auth': authHandler,
+  '/captcha': captchaHandler,
+  '/rides': ridesHandler,
+  '/chat': chatHandler,
+  '/admin': adminHandler,
+  '/notifications': notificationsHandler,
+  '/places': placesHandler,
+  '/uploads': uploadsHandler,
 };
 
 serve(async (req) => {
@@ -27,50 +37,47 @@ serve(async (req) => {
   try {
     const url = new URL(req.url);
     const functionPath = '/' + url.pathname.split('/')[1];
-    
+
     // Find matching route
-    const routeLoader = functionRoutes[functionPath as keyof typeof functionRoutes];
-    
-    if (!routeLoader) {
+    const routeHandler = functionRoutes[functionPath as keyof typeof functionRoutes];
+
+    if (!routeHandler) {
       return new Response(
-        JSON.stringify({ 
-          error: 'Function not found',
+        JSON.stringify({
+          error: 'Not found',
           available_functions: Object.keys(functionRoutes)
         }),
-        { 
-          status: 404, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        {
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
     }
 
-    // Dynamically import and execute the function
-    const functionModule = await routeLoader();
-    
-    // The imported module should have a default export that handles the request
-    if (typeof functionModule.default === 'function') {
-      return await functionModule.default(req);
+    // Execute the function handler directly
+    if (typeof routeHandler === 'function') {
+      return await routeHandler(req);
     }
-    
+
     return new Response(
       JSON.stringify({ error: 'Invalid function module' }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
 
   } catch (error) {
     console.error('Function router error:', error);
-    
+
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         error: 'Internal server error',
-        message: error.message 
+        message: error.message
       }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
   }
