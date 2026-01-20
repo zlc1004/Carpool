@@ -1,0 +1,33 @@
+{
+  "public": {
+    "enableDebugMode": false,
+    "oneSignal": {
+      "appId": "a1f06572-fc69-4ec0-9402-b6e8a56bf14c",
+      "safariWebId": "web.onesignal.auto.313afc18-65a3-4cb5-bd8a-eabd69c6e4d8"
+    },
+    "vapid": {
+      "publicKey": "BEl62iUYgUivxIkv69yViEuiBIa40HI0DLLuxazjBF..."
+    },
+    "clerk": {
+      "publishableKey": "pk_test_ZGVmaW5pdGUtZmF3bi03OC5jbGVyay5hY2NvdW50cy5kZXYk"
+    }
+  },
+  "private": {
+    "vapid": {
+      "privateKey": "4OM3EtXb1HI0DLLuxazjBF...",
+      "subject": "mailto:your-email@domain.com"
+    },
+    "clerk": {
+      "secretKey": "sk_test_bwTGgj7MUYzb4GjCNI4mM2lBY8xgVvXLlTW1rTjwBm"
+    }
+  },
+  "defaultAccounts": [
+    {
+      "email": "admin@carp.school",
+      "password": "admin",
+      "role": "admin"
+    }
+  ],
+  "defaultPlaces": [],
+  "defaultRides": []
+}
