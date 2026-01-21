@@ -9,7 +9,11 @@
       "publicKey": "BEl62iUYgUivxIkv69yViEuiBIa40HI0DLLuxazjBF..."
     },
     "clerk": {
-      "publishableKey": "pk_test_ZGVmaW5pdGUtZmF3bi03OC5jbGVyay5hY2NvdW50cy5kZXYk"
+      "publishableKey": "pk_test_ZGVmaW5pdGUtZmF3bi03OC5jbGVyay5hY2NvdW50cy5kZXYk",
+      "signInUrl": "/login",
+      "signUpUrl": "/signup",
+      "signInFallbackRedirectUrl": "/my-rides",
+      "signUpFallbackRedirectUrl": "/onboarding"
     }
   },
   "private": {
